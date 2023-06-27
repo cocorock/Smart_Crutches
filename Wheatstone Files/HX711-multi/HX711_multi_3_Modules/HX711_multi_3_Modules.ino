@@ -3,18 +3,18 @@
 // Pins to the load cell amp
 #define CLK 23      // clock pin to the load cell amp
 #define DOUT1 32    // data pin to the first lca
-#define DOUT2 33    // data pin to the second lca
-#define DOUT3 34
-#define DOUT4 27  
-#define DOUT5 25
-#define DOUT6 26
+#define DOUT2 33   // data pin to the second lca
+// #define DOUT3 34
+// #define DOUT4 27  
+// #define DOUT5 25
+// #define DOUT6 26
 
 
 #define BOOT_MESSAGE "MIT_ML_SCALE V0.8"
 
 #define TARE_TIMEOUT_SECONDS 4
 
-byte DOUTS[] = {DOUT1,DOUT2,DOUT3,DOUT4,DOUT5,DOUT5,DOUT6};
+byte DOUTS[] = {DOUT1,DOUT2};
 
 #define CHANNEL_COUNT sizeof(DOUTS)/sizeof(byte)
 

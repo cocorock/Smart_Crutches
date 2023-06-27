@@ -44,7 +44,7 @@ Adafruit_Madgwick filter;  // faster than NXP
   Adafruit_Sensor_Calibration_SDFat cal;
 #endif
 
-#define FILTER_UPDATE_RATE_HZ 100
+#define FILTER_UPDATE_RATE_HZ 50
 #define PRINT_EVERY_N_UPDATES 10
 // #define AHRS_DEBUG_OUTPUT
 
@@ -180,8 +180,8 @@ void loop() {
     roll = filter.getRoll();
     pitch = filter.getPitch();
     heading = filter.getYaw();
-    Serial.print(millis());
-    Serial.print(' ');
+    // Serial.print(millis());
+    // Serial.print(' ');
     Serial.print("Orientation: ");
     Serial.print(heading);
     Serial.print(", ");
