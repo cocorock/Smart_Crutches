@@ -41,7 +41,7 @@ Adafruit_Madgwick filter;  // faster than NXP
 #if defined(ADAFRUIT_SENSOR_CALIBRATION_USE_EEPROM)
   Adafruit_Sensor_Calibration_EEPROM cal;
 #else
-  Adafruit_Sensor_Calibration_SDFat cal;
+  Adafruit_Sensor_Calibration_SDFat cal;  
 #endif
 
 #define FILTER_UPDATE_RATE_HZ 50
