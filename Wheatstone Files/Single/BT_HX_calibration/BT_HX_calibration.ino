@@ -1,5 +1,6 @@
-#include "BluetoothSerial.h"  // Include the BluetoothSerial library
+#include <BluetoothSerial.h>  // Include the BluetoothSerial library
 #include "HX711.h"
+#include "esp_system.h"  // Include the ESP32 system header
 
 BluetoothSerial SerialBT;  // Create an instance of the BluetoothSerial class
 HX711 myScale;
@@ -18,8 +19,11 @@ void setup()
   Serial.println(HX711_LIB_VERSION);
   Serial.println();
 
-  SerialBT.begin("ESP32_HX711_CALIB");  // Initialize the Bluetooth serial port
-
+  uint64_t chipid = ESP.getEfuseMac(); // Get the MAC address of the ESP32
+  String deviceName = "ESP32-BT-" + String((uint32_t)chipid); // Create a unique device name
+  SerialBT.begin(deviceName); // Start the Bluetooth with the unique device name
+  Serial.print(deviceName);
+  Serial.println("\tThe device started, now you can pair it with bluetooth!");
 
   myScale.begin(dataPin, clockPin);
 }
