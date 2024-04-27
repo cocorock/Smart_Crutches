@@ -26,6 +26,10 @@ void setup()
   Serial.println("\tThe device started, now you can pair it with bluetooth!");
 
   myScale.begin(dataPin, clockPin);
+  //set mode
+  myScale.set_medavg_mode();
+  Serial.print(myScale.get_mode());
+  
 }
 
 void loop()
