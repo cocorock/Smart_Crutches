@@ -61,7 +61,6 @@ void setup() {
     SerialBT.setPin(pin);
     Serial.println("Using PIN");
   #endif
-  // ----------------------------------
 
   if (!cal.begin()) {
     Serial.println("Failed to initialize calibration helper");

@@ -62,7 +62,11 @@ State state = STATE_1;
 unsigned long lastToggleTime = 0;
 
 void setup() {
-  scale.begin(dataPin, clockPin);
+  #ifdef BETTER_PLOTTER  //#if defined(ARD_PRINT) || defined(BETTER_PLOTTER)
+    Serial.begin(115200);
+    if (Serial.available()) {}
+  #endif
+
   // Initialize the button pins as inputs
   for (int i = 0; i < numButtons; i++) {
     pinMode(buttonPins[i], INPUT_PULLUP);
@@ -85,12 +89,64 @@ void setup() {
   Serial.println("Using PIN");
 #endif
 
+//---------------------------------------------------------------
+if (!cal.begin()) {
+    Serial.println("Failed to initialize calibration helper");
+  } else if (! cal.loadCalibration()) {
+    Serial.println("No calibration loaded/found");
+  } else {
+    Serial.println("Initialization or Calibration loaded/found successfully");
+    Serial.println("Calibrations found: ");
+    Serial.print("\tMagnetic Hard Offset: ");
+    for (int i=0; i<3; i++) {
+      Serial.print(cal.mag_hardiron[i]); 
+      if (i != 2) Serial.print(", ");
+    }
+    Serial.println();
+    
+    Serial.print("\tMagnetic Soft Offset: ");
+    for (int i=0; i<9; i++) {
+      Serial.print(cal.mag_softiron[i]); 
+      if (i != 8) Serial.print(", ");
+    }
+    Serial.println();
 
-/#ifdef BETTER_PLOTTER  //#if defined(ARD_PRINT) || defined(BETTER_PLOTTER)
-  Serial.begin(115200);
-  if (Serial.available()) {}
-#endif
+    Serial.print("\tMagnetic Field Magnitude: ");
+    Serial.println(cal.mag_field);
 
+    Serial.print("\tGyro Zero Rate Offset: ");
+    for (int i=0; i<3; i++) {
+      Serial.print(cal.gyro_zerorate[i]); 
+      if (i != 2) Serial.print(", ");
+    }
+    Serial.println();
+
+    Serial.print("\tAccel Zero G Offset: ");
+    for (int i=0; i<3; i++) {
+      Serial.print(cal.accel_zerog[i]); 
+      if (i != 2) Serial.print(", ");
+    }
+    Serial.println();
+    delay(3000);
+  }
+
+  if (!init_sensors()) {
+    Serial.println("Failed to find sensors");
+    while (1) delay(10);
+  }
+  
+  accelerometer->printSensorDetails();
+  gyroscope->printSensorDetails();
+  magnetometer->printSensorDetails();
+
+  setup_sensors();
+  filter.begin(FILTER_UPDATE_RATE_HZ);
+  timestamp = millis();
+
+  Wire.setClock(400000); // 400KHz
+  //---------------------------------------------------------------
+
+scale.begin(dataPin, clockPin);
   if (chipIdString.equals("036")){ //123380739632932) {
     scale.set_offset(-1314026);  //Crutch 1
     scale.set_scale(-5.752855);  //Crutch 1
@@ -211,6 +267,100 @@ void loop() {
     SerialBT.println(100 * state);   // third varible is cos(t). make sure to finish with a println!
     state = STATE_1;
 #endif
+  }
+
+if(read_flag){
+    read_flag = false;
+     // Read the motion sensors
+    accelerometer->getEvent(&accel);
+    gyroscope->getEvent(&gyro);
+    magnetometer->getEvent(&mag);
+
+    #if defined(AHRS_DEBUG_OUTPUT)
+      Serial.print("I2C took "); Serial.print(millis()-timestamp); Serial.println(" ms");
+    #endif
+
+    cal.calibrate(mag);
+    cal.calibrate(accel);
+    cal.calibrate(gyro);
+
+    // Gyroscope needs to be converted from Rad/s to Degree/s
+    // the rest are not unit-important
+    gx = gyro.gyro.x * SENSORS_RADS_TO_DPS;
+    gy = gyro.gyro.y * SENSORS_RADS_TO_DPS;
+    gz = gyro.gyro.z * SENSORS_RADS_TO_DPS;
+
+    // Update the SensorFusion filter
+    filter.update(gx, gy, gz, 
+                  accel.acceleration.x, accel.acceleration.y, accel.acceleration.z, 
+                  mag.magnetic.x, mag.magnetic.y, mag.magnetic.z);
+    #if defined(AHRS_DEBUG_OUTPUT)
+      Serial.print("Update took "); Serial.print(millis()-timestamp); Serial.println(" ms");
+    #endif
+
+
+    #if defined(AHRS_DEBUG_OUTPUT)
+      Serial.print("Raw: ");
+      Serial.print(accel.acceleration.x, 4); Serial.print(", ");
+      Serial.print(accel.acceleration.y, 4); Serial.print(", ");
+      Serial.print(accel.acceleration.z, 4); Serial.print(", ");
+      Serial.print(gx, 4); Serial.print(", ");
+      Serial.print(gy, 4); Serial.print(", ");
+      Serial.print(gz, 4); Serial.print(", ");
+      Serial.print(mag.magnetic.x, 4); Serial.print(", ");
+      Serial.print(mag.magnetic.y, 4); Serial.print(", ");
+      Serial.print(mag.magnetic.z, 4); Serial.println("");
+    #endif
+
+    // print the heading, pitch and roll
+    roll = filter.getRoll();
+    pitch = filter.getPitch();
+    heading = filter.getYaw();
+    // Serial.print(millis());
+    // Serial.print(' ');
+    Serial.print("Orientation: ");
+    Serial.print(heading);
+    Serial.print(", ");
+    Serial.print(pitch);
+    Serial.print(", ");
+    Serial.println(roll);
+
+    float qw, qx, qy, qz;
+    filter.getQuaternion(&qw, &qx, &qy, &qz);
+    Serial.print("Quaternion: ");
+    Serial.print(qw, 4);
+    Serial.print(", ");
+    Serial.print(qx, 4);
+    Serial.print(", ");
+    Serial.print(qy, 4);
+    Serial.print(", ");
+    Serial.println(qz, 4);  
+
+    if (SerialBT.hasClient()){
+      SerialBT.print("Orientation: ");
+      SerialBT.print(heading);
+      SerialBT.print(", ");
+      SerialBT.print(pitch);
+      SerialBT.print(", ");
+      SerialBT.println(roll);
+      
+      SerialBT.print("Quaternion: ");
+      SerialBT.print(qw, 4);
+      SerialBT.print(", ");
+      SerialBT.print(qx, 4);
+      SerialBT.print(", ");
+      SerialBT.print(qy, 4);
+      SerialBT.print(", ");
+      SerialBT.println(qz, 4);
+    }
+    
+    #if defined(AHRS_DEBUG_OUTPUT)
+      Serial.print("Took "); Serial.print(millis()-timestamp); Serial.println(" ms");
+    #endif  
+  }
+
+  if (SerialBT.available()) {
+    Serial.write(SerialBT.read());
   }
 
   delay(1);
