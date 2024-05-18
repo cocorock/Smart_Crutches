@@ -3,12 +3,6 @@
 #include "esp_system.h"       // Include the ESP32 system header
 #include <Adafruit_Sensor_Calibration.h>
 #include <Adafruit_AHRS.h>
-#include "NXP_FXOS_FXAS.h"  // NXP 9-DoF breakout
-#include <Adafruit_FXAS21002C.h>
-#include <Adafruit_FXOS8700.h>
-
-
-Adafruit_Sensor *accelerometer, *gyroscope, *magnetometer;
 
 //-------------------- Bluetooth ------------------------
 #define BT_PRINT        // Print over Bluetooth
@@ -27,6 +21,9 @@ Adafruit_Sensor *accelerometer, *gyroscope, *magnetometer;
 #endif
 
 //-------------------- Accelerometer------------------------
+Adafruit_Sensor *accelerometer, *gyroscope, *magnetometer;
+#include "NXP_FXOS_FXAS.h" //         THIS LIBRARY HAS TO BE INCLUDE AFTER DECLARATING THE Adafruit Sensors
+
 #define FILTER_UPDATE_RATE_HZ 50
 #define PRINT_EVERY_N_UPDATES 10
 uint32_t timestamp;
@@ -161,7 +158,7 @@ void printForce_Orientation(Adafruit_Madgwick filter){
   printMessage("\t");
   printMessage("Force: ");
   printMessage(String(f));
-  printMessage("\t");
+  printMessage("\n");
   printMessage("Orientation: ");
   printMessage(String(heading,4));
   printMessage(", ");
