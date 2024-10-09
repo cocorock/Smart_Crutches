@@ -1,11 +1,5 @@
-// Full orientation sensing using NXP/Madgwick/Mahony and a range of 9-DoF
-// sensor sets.
-// You *must* perform a magnetic calibration before this code will work.
-//
-// To view this data, use the Arduino Serial Monitor to watch the
-// scrolling angles, or run the OrientationVisualiser example in Processing.
-// Based on  https://github.com/PaulStoffregen/NXPMotionSense with adjustments
-// to Adafruit Unified Sensor interface
+
+String file_name = "Programa: Merging_Calibrated.ino"; 
 
 #include <Adafruit_Sensor_Calibration.h>
 #include <Adafruit_AHRS.h>
@@ -53,7 +47,8 @@ uint32_t timestamp;
 void setup() {
   Serial.begin(115200);
   while (!Serial) yield();
-  
+  Serial.println(file_name);
+
   SerialBT.begin(device_name); //Bluetooth device name
   Serial.printf("The device with name \"%s\" is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str());
   //Serial.printf("The device with name \"%s\" and MAC address %s is started.\nNow you can pair it with Bluetooth!\n", device_name.c_str(), SerialBT.getMacString()); // Use this after the MAC method is implemented

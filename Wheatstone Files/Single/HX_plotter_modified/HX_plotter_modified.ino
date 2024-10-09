@@ -38,8 +38,8 @@ void setup()
 
 void loop(){
 
-  for (int i = 1; i < 5; i++){//number of samples
-    for (int j = 5; j< 16; j++){ //delay in ms
+  for (int i = 1; i < 15; i++){//number of samples
+    for (int j = 1; j< 15; j++){ //delay in ms
 
         if (scale.is_ready()) {
         

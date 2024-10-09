@@ -1,4 +1,4 @@
-String file_name = "Programa: FSM_pushbuttons_HX711_Acc.ino"; 
+String file_name = "Programa: Merging_FSM_pushbuttons_HX711_Acc.ino"; 
 
 #include <HX711.h>
 #include "BluetoothSerial.h"  // Include the BluetoothSerial library
@@ -52,6 +52,7 @@ HX711 scale;
 uint8_t dataPin = 34;
 uint8_t clockPin = 23;
 uint8_t readingsNo = 1; // Number of readings per meassurement
+const int calibrationAddress = 321;
 
 // Define the states
 enum State { STATE_1,   //default state, always do STATE_1
@@ -62,127 +63,6 @@ State state = STATE_1;
 
 // Define the blink intervals for each state (in milliseconds)
 //const int blinkIntervals[] = {500, 500, 250, 125};
-
-void printMessage(const String& message) {
-  #ifdef BT_PRINT
-    if (SerialBT.hasClient()) {
-      SerialBT.print(message);  // Print over Bluetooth
-    }
-  #endif
-
-  #ifdef BETTER_PLOTTER
-    Serial.print(message);  // Print over Serial Port
-  #endif
-}
-
-void printMessageLn(const String& message) {
-  #ifdef BT_PRINT
-    if (SerialBT.hasClient()) {
-      SerialBT.println(message);  // Print over Bluetooth
-    }
-  #endif
-
-  #ifdef BETTER_PLOTTER
-    Serial.println(message);  // Print over Serial Port
-  #endif
-}
-
-void printCalibration(){
- printMessageLn("Initialization or Calibration loaded/found successfully");
- printMessageLn("Calibrations found: ");
-  printMessage("\tMagnetic Hard Offset: ");
-  for (int i=0; i<3; i++) {
-    printMessage(String(cal.mag_hardiron[i])); 
-    if (i != 2) printMessage(", ");
-  }
- printMessageLn("");
-  printMessage("\tMagnetic Soft Offset: ");
-  for (int i=0; i<9; i++) {
-    printMessage(String(cal.mag_softiron[i])); 
-    if (i != 8) printMessage(", ");
-  }
- printMessageLn("");
- printMessage("\tMagnetic Field Magnitude: ");
- printMessageLn(String(cal.mag_field));
-  printMessage("\tGyro Zero Rate Offset: ");
-  for (int i=0; i<3; i++) {
-    printMessage(String(cal.gyro_zerorate[i])); 
-    if (i != 2) printMessage(", ");
-  }
- printMessageLn("");
-  printMessage("\tAccel Zero G Offset: ");
-  for (int i=0; i<3; i++) {
-    printMessage(String(cal.accel_zerog[i])); 
-    if (i != 2) printMessage(", ");
-  }
- printMessageLn("");
-}
-
-void printScaleParams(){
-  // float t = scale.get_tare();
-  long of = scale.get_offset();
-  // float sc = scale.get_scale();
-  // uint8_t g = scale.get_gain();
-  // float v = scale.get_value();
-  // float avg = scale.read_average(5);
-  // uint32_t l = scale.read();
-  printMessage(String(0));
-  printMessage("\t");
-  printMessage(String(100 * readingsNo));
-  printMessage("\t");
-  printMessage(String(100 * state));
-
-  printMessage("\t");
-  printMessage(String(scale.get_mode()));
-  printMessage(" - offset: ");
-  printMessage(String(of));
-  // printMessage("  uint32_t: ");
-  // printMessageLn((uint32_t)of);
-}
-
-void printForce_Orientation(Adafruit_Madgwick filter){
-    //------------------- AHRS -----------------------------
-  float roll, pitch, heading;
-  float f;
-
-  if (scale.is_ready()) {
-    f = scale.get_units(readingsNo);    // Get the current Measurement from the HX711  
-  }else{
-    printMessageLn("Error 302: Scale is not ready");
-  }
-  //------------------- AHRS -----------------------------
-  // print the heading, pitch and roll
-  roll = filter.getRoll();
-  pitch = filter.getPitch();
-  heading = filter.getYaw();
-
-  printMessage(String(millis()));
-  printMessage("\t");
-  printMessage("Force: ");
-  printMessage(String(f));
-  printMessage("\n");
-  printMessage("Orientation: ");
-  printMessage(String(heading,4));
-  printMessage(", ");
-  printMessage(String(pitch,4));
-  printMessage(", ");
-  printMessage(String(roll,4));
-  printMessage("\t"); 
-}
-
-void printQuaternion(Adafruit_Madgwick filter){
-  float qw, qx, qy, qz;
-  filter.getQuaternion(&qw, &qx, &qy, &qz);
-  printMessage("Quaternion: ");
-  printMessage(String(qw,4));
-  printMessage(", ");
-  printMessage(String(qx,4));
-  printMessage(", ");
-  printMessage(String(qy,4));
-  printMessage(", ");
-  printMessage(String(qz,4));
-  printMessageLn(",");
-}
 
 void setup() {
   //-------------------- SERIAL ------------------------
@@ -237,23 +117,30 @@ if (!cal.begin()) {
   Wire.setClock(400000); // 400KHz
  
 //-------------------- HX711 ------------------------
-  scale.begin(dataPin, clockPin);
-  if (chipIdString.equals("036")){ //123380739632932) {
-    scale.set_scale(-5.752855); // Set the scale
-    scale.set_offset(-1314026); // Set the offset
-    printMessageLn("Crutch 1");
-  } else if (chipIdString.equals("796")){
-    scale.set_offset(-1314026);  //Crutch 2
-    scale.set_scale(-5.639015);    //Crutch 2
-    printMessageLn("Crutch 2");
-  } else {
-    printMessageLn("Error 301: ID number don't match, scale not calibrated");
-    printMessageLn(chipIdString);
-  }
+  scale.begin(dataPin, clockPin); 
+  EEPROM.begin(512);// Initialize EEPROM with a size of 512 bytes
+  // Load calibration from EEPROM
+  loadFromMemory();
 
+  // if (chipIdString.equals("036")){ //123380739632932) {
+  //   scale.set_scale(-5.752855); // Set the scale
+  //   scale.set_offset(-1314026); // Set the offset
+  //   printMessageLn("Crutch 1");
+  // } else if (chipIdString.equals("796")){
+  //   scale.set_offset(-1314026);  //Crutch 2
+  //   scale.set_scale(-5.639015);    //Crutch 2
+  //   printMessageLn("Crutch 2");
+  // } else {
+  //   printMessageLn("Error 301: ID number don't match, scale not calibrated");
+  //   printMessageLn(chipIdString);
+  // }
+
+  printMessage("------------ HX711--------------");
   scale.set_average_mode(); //set_medavg_mode();   //set mode
-  printMessage("MODE:");
-  printMessageLn(String(scale.get_mode()));
+  printMessage("MODE: ");
+  printMessageLn(getModeNameHX711(scale.get_mode()));
+  printMessage("GAIN: ");
+  printMessageLn(getGainNameHX711(scale.get_gain()));
 
 }
 
@@ -360,7 +247,7 @@ if(print_flag){
 
   printForce_Orientation(filter);
 
-  printQuaternion(filter);
+  printMessage("\n");  //printQuaternion(filter); //<<<<<<<<<<<<<<<<<<--------------------------------
 
   #if defined(AHRS_DEBUG_OUTPUT)
     printMessage("Took "); printMessage(String(millis()-timestamp,4));printMessageLn(" ms");
@@ -374,4 +261,194 @@ if(print_flag){
   #endif
 
   delay(1);
+}
+
+
+void printMessage(const String& message) {
+  #ifdef BT_PRINT
+    if (SerialBT.hasClient()) {
+      SerialBT.print(message);  // Print over Bluetooth
+    }
+  #endif
+
+  #ifdef BETTER_PLOTTER
+    Serial.print(message);  // Print over Serial Port
+  #endif
+}
+
+void printMessageLn(const String& message) {
+  #ifdef BT_PRINT
+    if (SerialBT.hasClient()) {
+      SerialBT.println(message);  // Print over Bluetooth
+    }
+  #endif
+
+  #ifdef BETTER_PLOTTER
+    Serial.println(message);  // Print over Serial Port
+  #endif
+}
+
+void printCalibration(){
+ printMessageLn("Initialization or Calibration loaded/found successfully");
+ printMessageLn("Calibrations found: ");
+  printMessage("\tMagnetic Hard Offset: ");
+  for (int i=0; i<3; i++) {
+    printMessage(String(cal.mag_hardiron[i])); 
+    if (i != 2) printMessage(", ");
+  }
+ printMessageLn("");
+  printMessage("\tMagnetic Soft Offset: ");
+  for (int i=0; i<9; i++) {
+    printMessage(String(cal.mag_softiron[i])); 
+    if (i != 8) printMessage(", ");
+  }
+ printMessageLn("");
+ printMessage("\tMagnetic Field Magnitude: ");
+ printMessageLn(String(cal.mag_field));
+  printMessage("\tGyro Zero Rate Offset: ");
+  for (int i=0; i<3; i++) {
+    printMessage(String(cal.gyro_zerorate[i])); 
+    if (i != 2) printMessage(", ");
+  }
+ printMessageLn("");
+  printMessage("\tAccel Zero G Offset: ");
+  for (int i=0; i<3; i++) {
+    printMessage(String(cal.accel_zerog[i])); 
+    if (i != 2) printMessage(", ");
+  }
+ printMessageLn("");
+}
+
+void printScaleParams(){
+  // float t = scale.get_tare();
+  long of = scale.get_offset();
+  // float sc = scale.get_scale();
+  // uint8_t g = scale.get_gain();
+  // float v = scale.get_value();
+  // float avg = scale.read_average(5);
+  // uint32_t l = scale.read();
+  printMessage(String(0));
+  printMessage("\t");
+  printMessage(String(100 * readingsNo));
+  printMessage("\t");
+  printMessage(String(100 * state));
+
+  printMessage("\t");
+  printMessage(String(scale.get_mode()));
+  printMessage(" - offset: ");
+  printMessage(String(of));
+  // printMessage("  uint32_t: ");
+  // printMessageLn((uint32_t)of);
+}
+
+void printForce_Orientation(Adafruit_Madgwick filter){
+    //------------------- AHRS -----------------------------
+  float roll, pitch, heading;
+  float f;
+
+  if (scale.is_ready()) {
+    f = scale.get_units(readingsNo);    // Get the current Measurement from the HX711  
+  }else{
+    printMessageLn("Error 302: Scale is not ready");
+  }
+  //------------------- AHRS -----------------------------
+  // print the heading, pitch and roll
+  roll = filter.getRoll();
+  pitch = filter.getPitch();
+  heading = filter.getYaw();
+
+  printMessage(String(millis()));
+  printMessage("\t");
+  printMessage("F: ");
+  printMessage(String(f));
+  printMessage(", ");
+  printMessage("Ori: ");
+  printMessage(String(heading,4));
+  printMessage(", ");
+  printMessage(String(pitch,4));
+  printMessage(", ");
+  printMessage(String(roll,4));
+  printMessage("\t"); 
+}
+
+void printQuaternion(Adafruit_Madgwick filter){
+  float qw, qx, qy, qz;
+  filter.getQuaternion(&qw, &qx, &qy, &qz);
+  printMessage("Quaternion: ");
+  printMessage(String(qw,4));
+  printMessage(", ");
+  printMessage(String(qx,4));
+  printMessage(", ");
+  printMessage(String(qy,4));
+  printMessage(", ");
+  printMessage(String(qz,4));
+  printMessageLn(",");
+}
+
+String getModeNameHX711(uint8_t mode) {
+    switch (mode) {
+        case HX711_AVERAGE_MODE:
+            return "Average Mode";
+        case HX711_MEDIAN_MODE:
+            return "Median Mode";
+        case HX711_MEDAVG_MODE:
+            return "MedAvg Mode";
+        case HX711_RUNAVG_MODE:
+            return "RunAvg Mode";
+        case HX711_RAW_MODE:
+            return "Raw Mode";
+        default:
+            return "Unknown Mode";
+    }
+}
+
+String getGainNameHX711(uint8_t gain) {
+    switch (gain) {
+        case HX711_CHANNEL_A_GAIN_128:
+            return "Channel A Gain 128";
+        case HX711_CHANNEL_A_GAIN_64:
+            return "Channel A Gain 64";
+        case HX711_CHANNEL_B_GAIN_32:
+            return "Channel B Gain 32";
+        default:
+            return "Unknown Gain";
+  }
+}
+
+ // Function to read calibration data from EEPROM
+void readCalibrationFromEEPROM(float &scaleValue, float &offsetValue) {
+  EEPROM.get(calibrationAddress, scaleValue);
+  EEPROM.get(calibrationAddress + sizeof(float), offsetValue);
+}
+
+// Function to write calibration data to EEPROM
+void writeCalibrationToEEPROM(float scaleValue, float offsetValue) {
+  EEPROM.put(calibrationAddress, scaleValue);
+  EEPROM.put(calibrationAddress + sizeof(float), offsetValue);
+  EEPROM.commit();  // Save changes to EEPROM
+}
+
+void loadFromMemory() {
+  float scaleValue, offsetValue;
+  readCalibrationFromEEPROM(scaleValue, offsetValue);
+
+  // Check if the EEPROM contains valid data
+  if (isnan(scaleValue) || scaleValue == 0) {
+    scaleValue = -5.752855;  // Default scale value
+    Serial.println("No Calibration Found!");
+    Serial.println("Scale Value set: " + String(scaleValue));
+  }else{
+    Serial.println("Scale Value set From Mem: " + String(scaleValue));
+  }
+  scale.set_scale(scaleValue);
+
+  if (isnan(offsetValue)) {
+    delay(500);
+    scale.tare(20);
+    delay(500);
+    Serial.println("Scale tared!");
+  }else{
+    Serial.println("Offset Value set From Mem: " + String(offsetValue));
+    scale.set_offset(offsetValue);
+  }
 }
