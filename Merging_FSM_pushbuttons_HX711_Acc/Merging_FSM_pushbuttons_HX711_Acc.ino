@@ -7,7 +7,7 @@ String file_name = "Programa: Merging_FSM_pushbuttons_HX711_Acc.ino";
 #include <Adafruit_AHRS.h>
 
 //-------------------- Bluetooth ------------------------
-#define BT_PRINT        // Print over Bluetooth
+// #define BT_PRINT        // Print over Bluetooth
 #define BETTER_PLOTTER  // Print over Serial Port
 
 #ifdef BT_PRINT
@@ -349,7 +349,9 @@ void printForce_Orientation(Adafruit_Madgwick filter){
   if (scale.is_ready()) {
     f = scale.get_units(readingsNo);    // Get the current Measurement from the HX711  
   }else{
-    printMessageLn("Error 302: Scale is not ready");
+    printMessage("Error 302: Scale is not ready (delay: ");
+    // printMessage("De");
+    printMessageLn(")");
   }
   //------------------- AHRS -----------------------------
   // print the heading, pitch and roll
