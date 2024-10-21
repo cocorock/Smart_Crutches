@@ -152,6 +152,7 @@ void setup() {
 }
 
 //-------------------- Main Loop Function ------------------------
+//----------------------------------------------------------------
 void loop() {
   static uint8_t counter = 0;        // Counter for print updates
   bool read_flag = false;            // Flag to read sensors

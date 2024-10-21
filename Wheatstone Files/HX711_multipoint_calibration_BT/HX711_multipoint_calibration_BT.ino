@@ -1,10 +1,12 @@
-// Include necessary libraries
-#include <Arduino.h>
+#include <BluetoothSerial.h>
 #include "HX711.h"
 #include <Preferences.h>  // For storing data in flash memory
 
 // Create HX711 object
 HX711 scale;
+
+// Bluetooth Serial object
+BluetoothSerial SerialBT;
 
 // Pin definitions for HX711
 uint8_t dataPin = 34;  // Data pin for HX711
@@ -17,7 +19,7 @@ uint8_t keyPadPins[] = {4, 0, 2, 15};
 Preferences preferences;
 
 // Constants
-const int numCalibrationPoints = 6;  // Updated to 6 points
+const int numCalibrationPoints = 8;  // Updated to 6 points
 
 // Arrays to hold calibration data
 float calibrationWeights[numCalibrationPoints];
@@ -28,13 +30,12 @@ float slopes[numCalibrationPoints - 1];
 float intercepts[numCalibrationPoints - 1];
 
 void setup() {
-  // Initialize Serial communication
-  Serial.begin(115200);
-  while (!Serial) {
-    ; // Wait for Serial port to be available
+  // Initialize Bluetooth Serial communication
+  SerialBT.begin("ESP32_LoadCell"); // Name of the Bluetooth device
+  while (!SerialBT.connected(0)) {   // Wait for Bluetooth connection
+    delay(100);
   }
-
-  Serial.println("HX711 Calibration Program");
+  SerialBT.println("Bluetooth connected!");
 
   // Initialize the HX711 scale
   scale.begin(dataPin, clockPin);
@@ -45,40 +46,40 @@ void setup() {
 
   // Check if previous calibration data exists
   if (preferences.isKey("weight0")) {
-    Serial.println("Previous calibration data found.");
+    SerialBT.println("Previous calibration data found.");
     char answer = '\0';
     while (answer != 'Y' && answer != 'y' && answer != 'N' && answer != 'n') {
-      Serial.println("Do you want to recalibrate? (Y/N)");
+      SerialBT.println("Do you want to recalibrate? (Y/N)");
 
       // Wait for user input
       String input = "";
       while (input.length() == 0) {
-        while (Serial.available() == 0) {
+        while (SerialBT.available() == 0) {
           // wait for user input
           delay(100);
         }
-        input = Serial.readStringUntil('\n');
+        input = SerialBT.readStringUntil('\n');
         input.trim(); // Remove any whitespace
       }
 
       answer = input.charAt(0);
       if (answer != 'Y' && answer != 'y' && answer != 'N' && answer != 'n') {
-        Serial.println("Invalid input. Please enter 'Y' or 'N'.");
+        SerialBT.println("Invalid input. Please enter 'Y' or 'N'.");
       }
     }
 
     if (answer == 'Y' || answer == 'y') {
       // User wants to recalibrate
-      Serial.println("Starting recalibration...");
+      SerialBT.println("Starting recalibration...");
       calibrateScale();
     } else {
       // User doesn't want to recalibrate
-      Serial.println("Using existing calibration data.");
+      SerialBT.println("Using existing calibration data.");
       // Load existing calibration data
       loadCalibrationData();
     }
   } else {
-    Serial.println("No previous calibration data found.");
+    SerialBT.println("No previous calibration data found.");
     // Start the calibration process
     calibrateScale();
   }
@@ -88,9 +89,9 @@ void loop() {
   // The main program can go here.
   // For this example, we'll just read and display the weight using the calibrated scale.
   float weight = getCalibratedWeight();
-  Serial.print("Weight: ");
-  Serial.print(weight, 2); // Print with 2 decimal places
-  Serial.println(" grams");
+  SerialBT.print("Weight: ");
+  SerialBT.print(weight, 2); // Print with 2 decimal places
+  SerialBT.println(" grams");
 
   delay(1000); // Wait 1 second before next reading
 }
@@ -119,12 +120,12 @@ void calibrateScale() {
 
   for (int i = 0; i < numCalibrationPoints; i++) {
     if (i == 0) {
-      SerialBT.println("Leave the scale empty (Point 1 of 6).");
+      SerialBT.println("Leave the scale empty (Point 1 of 8).");
       calibrationWeights[i] = 0; // Tare weight is zero grams
     } else {
       SerialBT.print("Place known weight on scale (Point ");
       SerialBT.print(i + 1);
-      SerialBT.println(" of 6) and enter the weight in grams:");
+      SerialBT.println(" of 8) and enter the weight in grams:");
 
       // Wait for user input
       while (SerialBT.available() == 0) {
@@ -209,12 +210,12 @@ void loadCalibrationData() {
     calibrationReadings[i] = preferences.getFloat(readingKey.c_str(), 0.0);
 
     // Print the loaded data
-    Serial.print("Loaded Calibration Point ");
-    Serial.print(i + 1);
-    Serial.print(": Weight = ");
-    Serial.print(calibrationWeights[i]);
-    Serial.print(" grams, Average reading = ");
-    Serial.println(calibrationReadings[i], 2);
+    SerialBT.print("Loaded Calibration Point ");
+    SerialBT.print(i + 1);
+    SerialBT.print(": Weight = ");
+    SerialBT.print(calibrationWeights[i]);
+    SerialBT.print(" grams, Average reading = ");
+    SerialBT.println(calibrationReadings[i], 2);
   }
 
   // Now sort the calibration data
@@ -228,7 +229,7 @@ void sortCalibrationData() {
   // Sort the calibration data in descending order of readings
   for (int i = 0; i < numCalibrationPoints - 1; i++) {
     for (int j = i + 1; j < numCalibrationPoints; j++) {
-      if (calibrationReadings[i] < calibrationReadings[j]) {
+      if (calibrationWeights[i] > calibrationWeights[j]) {
         // Swap calibrationReadings
         float tempReading = calibrationReadings[i];
         calibrationReadings[i] = calibrationReadings[j];
@@ -241,6 +242,14 @@ void sortCalibrationData() {
       }
     }
   }
+
+  // Print the sorted values
+  for (int i = 0; i < numCalibrationPoints; i++) {
+    SerialBT.print("Reading: ");
+    SerialBT.print(calibrationReadings[i]);
+    SerialBT.print(", Weight: ");
+    SerialBT.println(calibrationWeights[i]);
+  }
 }
 
 void calculateScaleFactor() {
@@ -250,10 +259,10 @@ void calculateScaleFactor() {
     float deltaWeight = calibrationWeights[i + 1] - calibrationWeights[i];
 
     if (deltaReading == 0) {
-      Serial.print("Error: Duplicate readings at calibration points ");
-      Serial.print(i + 1);
-      Serial.print(" and ");
-      Serial.println(i + 2);
+      SerialBT.print("Error: Duplicate readings at calibration points ");
+      SerialBT.print(i + 1);
+      SerialBT.print(" and ");
+      SerialBT.println(i + 2);
       slopes[i] = 0;
       intercepts[i] = 0;
     } else {
@@ -261,12 +270,12 @@ void calculateScaleFactor() {
       intercepts[i] = calibrationWeights[i] - slopes[i] * calibrationReadings[i];
     }
 
-    Serial.print("Range ");
-    Serial.print(i + 1);
-    Serial.print(": Slope = ");
-    Serial.print(slopes[i], 6);
-    Serial.print(", Intercept = ");
-    Serial.println(intercepts[i], 6);
+    SerialBT.print("Range ");
+    SerialBT.print(i + 1); 
+    SerialBT.print(": Slope = ");
+    SerialBT.print(slopes[i], 6);
+    SerialBT.print(", Intercept = ");
+    SerialBT.println(intercepts[i], 6);
   }
 }
 
