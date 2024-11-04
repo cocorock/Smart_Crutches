@@ -36,7 +36,10 @@ float intercepts[numCalibrationPoints - 1];
 
 void setup() {
   // Initialize Bluetooth Serial communication
-  SerialBT.begin("ESP32_LoadCell"); // Name of the Bluetooth device
+  uint64_t chipid = ESP.getEfuseMac();
+  String chipIdString = String((uint32_t)chipid).substring(7);// Get the MAC address of the ESP32
+  String deviceName = "Calib-Crutch-BT-" + chipIdString;  // Create a unique device name
+  SerialBT.begin(deviceName);                       // Start Bluetooth with the unique device name
   while (!SerialBT.connected(0)) {   // Wait for Bluetooth connection
     delay(100);
   }

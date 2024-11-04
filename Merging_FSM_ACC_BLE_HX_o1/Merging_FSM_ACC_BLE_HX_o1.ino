@@ -99,10 +99,10 @@ void setup() {
   //-------------------- Bluetooth Initialization ------------------------
   #ifdef BT_PRINT
     // Generate a unique device name using the ESP32 MAC address
-    uint64_t chipid = ESP.getEfuseMac();
-    String chipIdString = String((uint32_t)(chipid & 0xFFFFFFFF), HEX);
-    String deviceName = "Crutch-BT-" + chipIdString;  // Create a unique device name
-    SerialBT.begin(deviceName);                       // Start Bluetooth with the unique device name
+uint64_t chipid = ESP.getEfuseMac();
+String chipIdString = String((uint32_t)(chipid & 0xFFFFFFFF), HEX);
+String deviceName = "Calib-Crutch-BT-" + chipIdString;  // Create a unique device name
+SerialBT.begin(deviceName);                       // Start Bluetooth with the unique device name
   #endif
 
   #ifdef USE_PIN
