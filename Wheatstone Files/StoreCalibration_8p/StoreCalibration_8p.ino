@@ -1,14 +1,17 @@
-#include <BluetoothSerial.h>
+// #include <BluetoothSerial.h>
 #include "HX711.h"
 #include <Preferences.h>  // For storing data in flash memory
 
-#define SHOWREAD
-// #define DEBUG_SORT
+#define DEBUG_SORT
 #define DEBUG
-// #define SIMPLIFY
+#define SIMPLIFY
+#define SHOWREAD
 
 // Create HX711 object
 HX711 scale;
+
+// Bluetooth Serial object
+// BluetoothSerial SerialBT;
 
 // Pin definitions for HX711
 uint8_t dataPin = 34;  // Data pin for HX711
@@ -32,172 +35,46 @@ float slopes[numCalibrationPoints - 1];
 float intercepts[numCalibrationPoints - 1];
 
 void setup() {
-  // Initialize USB Serial communication
-  Serial.begin(115200); // Start serial communication at 115200 baud rate
-  while (!Serial) {
-    delay(100); // Wait for the serial port to connect
-  }
-  Serial.println("HX711_multipoint_calibration.ino");
-  Serial.println("Serial connected!");
+  // Initialize Serial for debugging
+  Serial.begin(115200);
+
+  // Initialize Bluetooth Serial (assuming Serial is used for Bluetooth)
+  // Serial.begin("ESP32test"); // Uncomment and modify if using Bluetooth
+  Serial.println("StoreCalibration_8p.ino");
 
   // Initialize the HX711 scale
   scale.begin(dataPin, clockPin);
   scale.set_scale(1.0);  // Initialize scale with a scale factor of 1
 
-  // Initialize Preferences
-  preferences.begin("calibration", false); // Namespace: "calibration", Read/Write mode
+  // Initialize preferences
+  preferences.begin("calibration", false);
 
-  // Check if previous calibration data exists
-  if (preferences.isKey("weight0")) {
-    Serial.println("Previous calibration data found.");
-    char answer = '\0';
-    while (answer != 'Y' && answer != 'y' && answer != 'N' && answer != 'n') {
-      Serial.println("Do you want to recalibrate? (Y/N)");
+  // Define your calibration data
+  float weights[] = {0, 1745, 4265, 6000, 8155, 9318, 10375, 11752};
+  float readings[] = {-1337500, -1346021.00, -1367780.62, -1379707.87, -1382843.25, -1391240.62, -1396204.25, -1406132.75};
 
-      // Wait for user input
-      String input = "";
-      while (input.length() == 0) {
-        while (Serial.available() == 0) {
-          // wait for user input
-          delay(100);
-        }
-        input = Serial.readStringUntil('\n');
-        input.trim(); // Remove any whitespace
-      }
-
-      answer = input.charAt(0);
-      if (answer != 'Y' && answer != 'y' && answer != 'N' && answer != 'n') {
-        Serial.println("Invalid input. Please enter 'Y' or 'N'.");
-      }
-    }
-
-    if (answer == 'Y' || answer == 'y') {
-      // User wants to recalibrate
-      Serial.println("Starting recalibration...");
-      calibrateScale();
-    } else {
-      // User doesn't want to recalibrate
-      Serial.println("Using existing calibration data.");
-      // Load existing calibration data
-      loadCalibrationData();
-    }
-  } else {
-    Serial.println("No previous calibration data found.");
-    // Start the calibration process
-    calibrateScale();
+  // Store each calibration data point
+  for (int i = 0; i < 8; i++) {
+    storeCalibrationData(i, weights[i], readings[i]);
   }
+
+  // Load and print the calibration data to verify
+  loadCalibrationData();
 }
 
 void loop() {
-  // The main program can go here.
   // For this example, we'll just read and display the weight using the calibrated scale.
   float weight = getCalibratedWeight();
 
-  #ifdef SIMPLIFY
-  Serial.println(weight, 2); // Print with 2 decimal places
-  #else
+  #ifndef SIMPLIFY
   Serial.print("Weight: ");
   Serial.print(weight, 2); // Print with 2 decimal places
   Serial.println(" grams");
+  #else
+  Serial.println(weight, 2); // Print with 2 decimal places
   #endif
 
   delay(1000); // Wait 1 second before next reading
-}
-
-void calibrateScale() {
-  Serial.println("Starting calibration...");
-
-  // Instruct the user
-  Serial.println("First, ensure that the scale is empty to capture the tare value.");
-  Serial.println("Press 'Y' to confirm that the scale is empty and proceed with tare measurement.");
-
-  // Wait for user input to confirm tare
-  char confirm = '\0';
-  while (confirm != 'Y' && confirm != 'y') {
-    while (Serial.available() == 0) {
-      // Wait for input
-      delay(100);
-    }
-    String input = Serial.readStringUntil('\n');
-    input.trim(); // Remove any whitespace
-    confirm = input.charAt(0);
-    if (confirm != 'Y' && confirm != 'y') {
-      Serial.println("Invalid input. Please press 'Y' to confirm that the scale is empty.");
-    }
-  }
-
-  for (int i = 0; i < numCalibrationPoints; i++) {
-    if (i == 0) {
-      Serial.println("Leave the scale empty (Point 1 of 8).");
-      calibrationWeights[i] = 0; // Tare weight is zero grams
-    } else {
-      Serial.print("Place known weight on scale (Point ");
-      Serial.print(i + 1);
-      Serial.println(" of 8) and enter the weight in grams:");
-
-      // Wait for user input
-      while (Serial.available() == 0) {
-        // Wait for input
-        delay(100);
-      }
-
-      // Read the weight entered by the user
-      String weightInput = Serial.readStringUntil('\n');
-      weightInput.trim(); // Remove any whitespace
-
-      // Check if the input is a valid number
-      bool validNumber = true;
-      for (unsigned int idx = 0; idx < weightInput.length(); idx++) {
-        if (!isDigit(weightInput.charAt(idx)) && weightInput.charAt(idx) != '.' && weightInput.charAt(idx) != '-') {
-          validNumber = false;
-          break;
-        }
-      }
-
-      if (!validNumber) {
-        Serial.println("Invalid input. Please enter a numeric value.");
-        i--; // Repeat this iteration
-        continue;
-      }
-
-      float knownWeight = weightInput.toFloat();
-
-      // Allow 0 gram input (since we have already captured 0 at first point)
-      if (knownWeight <= 0) {
-        Serial.println("Invalid weight entered. Please enter a positive number.");
-        i--; // Repeat this iteration
-        continue;
-      }
-
-      calibrationWeights[i] = knownWeight;
-    }
-
-    // Perform ten raw measurements and take the average
-    Serial.println("Performing measurements...");
-    float averageReading = scale.read_average(10);
-
-    calibrationReadings[i] = averageReading;
-
-    // Print the result
-    Serial.print("Calibration point ");
-    Serial.print(i + 1);
-    Serial.print(": Weight = ");
-    Serial.print(calibrationWeights[i]);
-    Serial.print(" grams, Average reading = ");
-    Serial.println(averageReading, 2);
-
-    // Store the calibration data in Preferences
-    storeCalibrationData(i, calibrationWeights[i], calibrationReadings[i]);
-  }
-
-  // Now sort the calibration data in descending order
-  sortCalibrationData();
-
-  Serial.println("Calibration complete.");
-  Serial.println("Calibration data has been saved to flash memory.");
-
-  // Calculate and set the scale factors here using the calibration data
-  calculateScaleFactor();
 }
 
 void storeCalibrationData(int index, float weight, float reading) {
@@ -341,9 +218,9 @@ float getCalibratedWeight() {
   #ifdef DEBUG
   Serial.print("Idx: ");
   Serial.print(index);
-  Serial.print(" SL[]: ");
+  Serial.print(", SL[]: ");
   Serial.print(slopes[index]);
-  Serial.print(" Inter[]: ");
+  Serial.print(", Inter[]: ");
   Serial.print(intercepts[index]);
   Serial.print("\t");   
   #endif

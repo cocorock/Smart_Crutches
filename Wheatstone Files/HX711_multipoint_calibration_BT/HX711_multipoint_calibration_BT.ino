@@ -2,6 +2,11 @@
 #include "HX711.h"
 #include <Preferences.h>  // For storing data in flash memory
 
+// #define DEBUG_SORT
+// #define DEBUG
+#define SIMPLIFY
+// #define SHOWREAD
+
 // Create HX711 object
 HX711 scale;
 
@@ -35,6 +40,7 @@ void setup() {
   while (!SerialBT.connected(0)) {   // Wait for Bluetooth connection
     delay(100);
   }
+  SerialBT.println("HX711_multipoint_calibration_BT.ino");
   SerialBT.println("Bluetooth connected!");
 
   // Initialize the HX711 scale
@@ -89,9 +95,14 @@ void loop() {
   // The main program can go here.
   // For this example, we'll just read and display the weight using the calibrated scale.
   float weight = getCalibratedWeight();
+
+  #ifndef SIMPLIFY
   SerialBT.print("Weight: ");
   SerialBT.print(weight, 2); // Print with 2 decimal places
   SerialBT.println(" grams");
+  #else
+  SerialBT.println(weight, 2); // Print with 2 decimal places
+  #endif
 
   delay(1000); // Wait 1 second before next reading
 }
@@ -244,12 +255,14 @@ void sortCalibrationData() {
   }
 
   // Print the sorted values
+  #ifdef DEBUG_SORT
   for (int i = 0; i < numCalibrationPoints; i++) {
-    SerialBT.print("Reading: ");
-    SerialBT.print(calibrationReadings[i]);
-    SerialBT.print(", Weight: ");
-    SerialBT.println(calibrationWeights[i]);
+    SerialBT.print("Weight: ");
+    SerialBT.print(calibrationWeights[i]);
+    SerialBT.print(", Reading: ");
+    SerialBT.println(calibrationReadings[i]);
   }
+  #endif
 }
 
 void calculateScaleFactor() {
@@ -266,8 +279,8 @@ void calculateScaleFactor() {
       slopes[i] = 0;
       intercepts[i] = 0;
     } else {
-      slopes[i] = deltaWeight / deltaReading;
-      intercepts[i] = calibrationWeights[i] - slopes[i] * calibrationReadings[i];
+      slopes[i] = deltaReading / deltaWeight;
+      intercepts[i] = calibrationReadings[i] - slopes[i] * calibrationWeights[i];
     }
 
     SerialBT.print("Range ");
@@ -283,8 +296,13 @@ float getCalibratedWeight() {
   // Get the raw reading
   float reading = scale.read_average(10);
 
-  int index = -1;
+  #ifdef SHOWREAD
+  SerialBT.print("S_R: ");
+  SerialBT.print(reading);
+  SerialBT.print("\t");
+  #endif
 
+  int index = -1;
   if (reading >= calibrationReadings[0]) {
     // Reading is higher than the highest calibration reading
     index = 0;
@@ -306,8 +324,18 @@ float getCalibratedWeight() {
     index = 0;
   }
 
+  #ifdef DEBUG
+  SerialBT.print("IDX ");
+  SerialBT.print(index);
+  SerialBT.print(", SL[]: ");
+  SerialBT.print(slopes[index]);
+  SerialBT.print(", INTER[]: ");
+  SerialBT.print(intercepts[index]);
+  SerialBT.print("\t");
+  #endif
+
   // Use the slope and intercept of the identified range
-  float weight = slopes[index] * reading + intercepts[index];
+  float weight = (reading - intercepts[index]) / slopes[index] ;
 
   return weight;
 }

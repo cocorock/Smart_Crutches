@@ -19,6 +19,8 @@ void setup() {
   // Initialize serial ports
   Serial.begin(115200);
 
+  Serial.println("Calibration_sampling_BT.ino");
+
 #if USE_BLUETOOTH
   SerialBT.begin("ESP32_HX711"); // Name of the Bluetooth device
 #endif
