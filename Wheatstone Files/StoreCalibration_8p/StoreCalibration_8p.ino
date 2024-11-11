@@ -14,11 +14,11 @@ HX711 scale;
 // BluetoothSerial SerialBT;
 
 // Pin definitions for HX711
-uint8_t dataPin = 34;  // Data pin for HX711
-uint8_t clockPin = 23; // Clock pin for HX711
+uint8_t dataPin = 34;   // Data pin for HX711
+uint8_t clockPin = 23;  // Clock pin for HX711
 
 // Keypad pin definitions (Not used in this code, but defined for future use)
-uint8_t keyPadPins[] = {4, 0, 2, 15};
+uint8_t keyPadPins[] = { 4, 0, 2, 15 };
 
 // Create Preferences object
 Preferences preferences;
@@ -49,9 +49,13 @@ void setup() {
   // Initialize preferences
   preferences.begin("calibration", false);
 
-  // Define your calibration data
-  float weights[] = {0, 1745, 4265, 6000, 8155, 9318, 10375, 11752};
-  float readings[] = {-1337500, -1346021.00, -1367780.62, -1379707.87, -1382843.25, -1391240.62, -1396204.25, -1406132.75};
+  // Crutch BT-796 - Left
+  float weights[] = {17250, 13940, 9750, 7526, 3780, 2230, 1130, 0};
+  float readings[] = {-2084786.00, -2064025.62, -2039924.75, -2027374.37, -2005357.37, -1996114.25, -1987900.62, -1981253.25};
+
+  // Crutch BT-036 - Right
+  // float weights[] = { 17200, 14460, 11568, 7770, 5700, 2550, 1340, 0 };
+  // float readings[] = { -1430633.87, -1415796.87, -1400161.25, -1379589.87, -1368381.87, -1351532.62, -1345973.50, -1338805.87 };
 
   // Store each calibration data point
   for (int i = 0; i < 8; i++) {
@@ -66,15 +70,15 @@ void loop() {
   // For this example, we'll just read and display the weight using the calibrated scale.
   float weight = getCalibratedWeight();
 
-  #ifndef SIMPLIFY
+#ifndef SIMPLIFY
   Serial.print("Weight: ");
-  Serial.print(weight, 2); // Print with 2 decimal places
+  Serial.print(weight, 2);  // Print with 2 decimal places
   Serial.println(" grams");
-  #else
-  Serial.println(weight, 2); // Print with 2 decimal places
-  #endif
+#else
+  Serial.println(weight, 2);  // Print with 2 decimal places
+#endif
 
-  delay(1000); // Wait 1 second before next reading
+  delay(1000);  // Wait 1 second before next reading
 }
 
 void storeCalibrationData(int index, float weight, float reading) {
@@ -128,38 +132,38 @@ void sortCalibrationData() {
     }
   }
 
-  // Print the sorted values
-  #ifdef DEBUG_SORT
+// Print the sorted values
+#ifdef DEBUG_SORT
   for (int i = 0; i < numCalibrationPoints; i++) {
     Serial.print("Weight: ");
     Serial.print(calibrationWeights[i]);
     Serial.print(", Reading: ");
     Serial.println(calibrationReadings[i]);
   }
-  #endif
+#endif
 }
 
 void calculateScaleFactor() {
   // Compute slopes and intercepts for each range
-  for (int i = 0; i < numCalibrationPoints - 1; i++) {   
+  for (int i = 0; i < numCalibrationPoints - 1; i++) {
     float deltaReading = calibrationReadings[i + 1] - calibrationReadings[i];
     float deltaWeight = calibrationWeights[i + 1] - calibrationWeights[i];
 
-    #ifdef DEBUG_SORT
+#ifdef DEBUG_SORT
     Serial.print("\nWeight: ");
     Serial.print(calibrationWeights[i]);
     Serial.print("\t");
-    Serial.print(calibrationWeights[i+1]);
+    Serial.print(calibrationWeights[i + 1]);
     Serial.print("\t");
     Serial.println(deltaWeight);
 
     Serial.print("Reading: ");
     Serial.print(calibrationReadings[i]);
     Serial.print("\t");
-    Serial.print(calibrationReadings[i+1]);
+    Serial.print(calibrationReadings[i + 1]);
     Serial.print("\t");
     Serial.println(deltaReading);
-    #endif
+#endif
 
     if (deltaReading == 0) {
       Serial.print("Error: Duplicate readings at calibration points ");
@@ -174,7 +178,7 @@ void calculateScaleFactor() {
     }
 
     Serial.print("Range ");
-    Serial.print(i + 1); 
+    Serial.print(i + 1);
     Serial.print(": Slope = ");
     Serial.print(slopes[i], 6);
     Serial.print(", Intercept = ");
@@ -186,11 +190,11 @@ float getCalibratedWeight() {
   // Get the raw reading
   float reading = scale.read_average(10);
 
-  #ifdef SHOWREAD
+#ifdef SHOWREAD
   Serial.print("Show Reading: ");
   Serial.print(reading);
   Serial.print("\t");
-  #endif
+#endif
 
   int index = -1;
 
@@ -215,18 +219,18 @@ float getCalibratedWeight() {
     index = 0;
   }
 
-  #ifdef DEBUG
+#ifdef DEBUG
   Serial.print("Idx: ");
   Serial.print(index);
   Serial.print(", SL[]: ");
   Serial.print(slopes[index]);
   Serial.print(", Inter[]: ");
   Serial.print(intercepts[index]);
-  Serial.print("\t");   
-  #endif
+  Serial.print("\t");
+#endif
 
   // Use the slope and intercept of the identified range
-  float weight = (reading - intercepts[index]) / slopes[index] ;
+  float weight = (reading - intercepts[index]) / slopes[index];
 
   return weight;
 }

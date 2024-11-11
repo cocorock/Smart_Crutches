@@ -1,11 +1,17 @@
-close all
+% close all
 
 %% first plot
 % Define the data points
-weights = [0, 1745, 4265, 6000, 8155, 9318, 10375, 11752];
-readings = [-1335000, -1346021.00, -1367780.62, -1379707.87, -1382843.25, -1391240.62, -1396204.25, -1406132.75];
-%-1257623.62
-%5568
+% weights = [0, 1745, 4265, 6000, 8155, 9318, 10375, 11752];
+% readings = [-1335000, -1346021.00, -1367780.62, -1379707.87, -1382843.25, -1391240.62, -1396204.25, -1406132.75];
+
+%Crutch BT-796 - Left
+weights = [17250, 13940, 9750, 7526, 3780, 2230, 1130, 0];
+readings = [-2084786.00, -2064025.62, -2039924.75, -2027374.37, -2005357.37, -1996114.25, -1987900.62, -1981253.25];
+
+% % %Crutch BT-036 - Right
+% weights = [17200, 14460, 11568, 7770, 5700, 2550, 1340, 0];
+% readings = [-1430633.87, -1415796.87, -1400161.25, -1379589.87, -1368381.87, -1351532.62, -1345973.50, -1338805.87];
 
 % Plot the original data
 figure(1);
@@ -89,8 +95,8 @@ legend('Location', 'best');
 hold off;
 %% thrid plot
 % Define the data points
-weights = [0, 1745, 4265, 5568, 8155, 9318, 10375, 11752];
-readings = [-1257623.62, -1346021.00, -1367780.62, -1379707.87, -1382843.25, -1391240.62, -1396204.25, -1406132.75];
+% weights = [0, 1745, 4265, 5568, 8155, 9318, 10375, 11752];
+% readings = [-1257623.62, -1346021.00, -1367780.62, -1379707.87, -1382843.25, -1391240.62, -1396204.25, -1406132.75];
 
 % Plot the original data
 figure(3);
@@ -102,14 +108,14 @@ grid on;
 hold on;
 
 % Fit a third-degree polynomial to the data
-p = polyfit(weights, readings, 4);
+p = polyfit(weights, readings, 1);
 
 % Generate a range of weights for plotting the polynomial curve
 w_fit = linspace(min(weights), max(weights), 1000);
 r_fit = polyval(p, w_fit);
 
 % Plot the polynomial approximation
-plot(w_fit, r_fit, 'r-', 'LineWidth', 2, 'DisplayName', sprintf(' Degree Poly: y = %.2fx^3 + %.2fx^2 + %.2fx + %.2f', p(1), p(2), p(3), p(4)));
+plot(w_fit, r_fit, 'r-', 'LineWidth', 2, 'DisplayName', sprintf(' Degree Poly: y = %.2fx^3 + %.2fx^2', p(1), p(2)));
 
 % Update legend
 legend('Location', 'best');
