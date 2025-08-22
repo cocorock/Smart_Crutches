@@ -10,10 +10,10 @@
 //---- Variáveis Globais e Definições ----
 
 // Nome do arquivo do programa
-String file_name = "Programa: Merging_FSM_ACC_BLE_HX_o1.ino";
+String file_name = "Programa: MultisensorESP32_PT.ino";
 
 //---- Bluetooth ----
-#define BT_PRINT    // Define para habilitar impressão Bluetooth
+// #define BT_PRINT    // Define para habilitar impressão Bluetooth
 #define BETTER_PLOTTER  // Define para habilitar impressão na Porta Serial
 
 // Configuração do Bluetooth
