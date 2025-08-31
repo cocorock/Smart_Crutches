@@ -1,11 +1,11 @@
-// Modified ESP32 Code - Push Buttons and Analog Reading
+// Modified ESP32 Code - Push Buttons, Analog Reading, and Touch Sensor
 // Compatible with Arduino IDE Serial Plotter
 
 //---- Global Variables and Definitions ----
-String file_name = "Program: ESP32_ButtonsAnalog.ino";
+String file_name = "Program: ESP32_ButtonsAnalogTouch.ino";
 
 //---- Push Buttons Configuration ----
-const int keyPadPins[] = { 4, 0, 2, 15 };  // Push button pins
+const int keyPadPins[] = { 4, 0, 15, 2 };  // Push button pins
 const int numButtons = sizeof(keyPadPins) / sizeof(int);
 const int ledPin = 5;  // LED pin
 
@@ -13,12 +13,20 @@ const int ledPin = 5;  // LED pin
 const int analogPin = 33;  // Analog input pin
 int analogValue = 0;       // Variable to store analog reading
 
+//---- Touch Sensor Configuration ----
+const int touchPin = T5;   // GPIO12 (Touch5) - T5 is predefined constant
+int touchThreshold = 30;   // Threshold for touch detection (adjust as needed)
+int touchValue = 0;        // Variable to store touch reading
+bool touchDetected = false; // Touch state
+bool lastTouchState = false; // Previous touch state for edge detection
+
 //---- State Machine Definitions ----
 enum State {
   STATE_1,   // Default state - Button 1
   STATE_2,   // Button 2 pressed
   STATE_3,   // Button 3 pressed  
-  STATE_4    // Button 4 pressed
+  STATE_4,   // Button 4 pressed
+  STATE_TOUCH // Touch sensor activated
 };
 
 State currentState = STATE_1;  // Initialize state
@@ -29,6 +37,8 @@ unsigned long lastAnalogRead = 0;
 const unsigned long analogReadInterval = 100;  // Read analog every 100ms
 unsigned long lastLedToggle = 0;
 const unsigned long ledToggleInterval = 500;   // Toggle LED every 500ms
+unsigned long lastTouchRead = 0;
+const unsigned long touchReadInterval = 50;    // Read touch every 50ms
 
 //---- Setup Function ----
 void setup() {
@@ -48,14 +58,24 @@ void setup() {
   // Initialize analog pin (though it's input by default)
   pinMode(analogPin, INPUT);
   
+  // No need to initialize touch pin - it's handled by ESP32 touch API
+  
   Serial.println("System initialized");
-  Serial.println("Button1\tAnalogValue");  // Headers for Arduino Plotter
+  Serial.println("Touch sensor on GPIO12 (T5) configured");
+  Serial.println("Touch threshold set to: " + String(touchThreshold));
+  Serial.println("Button\tAnalogValue\tTouchValue");  // Headers for Arduino Plotter
   
   delay(1000);  // Give time for serial monitor to connect
 }
 
 //---- Main Loop Function ----
 void loop() {
+  // Handle touch sensor reading
+  if (millis() - lastTouchRead >= touchReadInterval) {
+    handleTouchSensor();
+    lastTouchRead = millis();
+  }
+  
   // Handle button state machine
   handleButtons();
   
@@ -65,7 +85,6 @@ void loop() {
     lastAnalogRead = millis();
     
     // Print data compatible with Arduino Plotter
-    // Format: ButtonValue\tAnalogValue
     printPlotterData();
   }
   
@@ -76,6 +95,28 @@ void loop() {
   }
   
   delay(10);  // Small delay to prevent watchdog resets
+}
+
+//---- Touch Sensor Handling Function ----
+void handleTouchSensor() {
+  touchValue = touchRead(touchPin);  // Read touch value
+  
+  // Check if touch is detected (value goes below threshold when touched)
+  touchDetected = (touchValue < touchThreshold);
+  
+  // Detect touch press (rising edge)
+  if (touchDetected && !lastTouchState) {
+    currentState = STATE_TOUCH;
+    handleStateActions();
+    Serial.println("Touch detected! Value: " + String(touchValue));
+  }
+  
+  // Detect touch release (falling edge)
+  if (!touchDetected && lastTouchState) {
+    Serial.println("Touch released! Value: " + String(touchValue));
+  }
+  
+  lastTouchState = touchDetected;
 }
 
 //---- Button Handling Function ----
@@ -108,34 +149,78 @@ void handleStateActions() {
     case STATE_1:
       // Button 1 pressed
       Serial.println("Button 1 pressed");
+      lastButtonPressed = STATE_1;
       break;
       
     case STATE_2:
       // Button 2 pressed
       Serial.println("Button 2 pressed");
+      lastButtonPressed = STATE_2;
       break;
       
     case STATE_3:
       // Button 3 pressed
       Serial.println("Button 3 pressed");
+      lastButtonPressed = STATE_3;
       break;
       
     case STATE_4:
       // Button 4 pressed
       Serial.println("Button 4 pressed");
+      lastButtonPressed = STATE_4;
+      break;
+      
+    case STATE_TOUCH:
+      // Touch sensor activated
+      Serial.println("Touch sensor activated");
+      // You can add specific touch actions here
+      // For example: change LED pattern, trigger special function, etc.
+      digitalWrite(ledPin, HIGH);  // Turn on LED when touched
       break;
   }
 }
 
 //---- Print Data for Arduino Plotter ----
 void printPlotterData() {
-  // Convert button state to numeric value for plotter
-  int buttonValue = static_cast<int>(lastButtonPressed) + 1;  // 1-4 instead of 0-3
+  // Convert button/touch state to numeric value for plotter
+  int stateValue;
   
-  // Print in Arduino Plotter format: Value1\tValue2
-  Serial.print(buttonValue);
+  if (touchDetected) {
+    stateValue = 5;  // Touch sensor value
+  } else {
+    stateValue = static_cast<int>(lastButtonPressed) + 1;  // 1-4 for buttons
+  }
+  
+  // Print in Arduino Plotter format: Value1\tValue2\tValue3
+  Serial.print(stateValue);
   Serial.print("\t");
-  Serial.println(analogValue);
+  Serial.print(analogValue);
+  Serial.print("\t");
+  Serial.println(touchValue);
+}
+
+//---- Touch Calibration Function ----
+void calibrateTouchSensor() {
+  // Call this function if you need to calibrate the touch threshold
+  Serial.println("Calibrating touch sensor...");
+  Serial.println("Don't touch the sensor for 3 seconds...");
+  
+  delay(1000);
+  
+  long sum = 0;
+  int samples = 100;
+  
+  for (int i = 0; i < samples; i++) {
+    sum += touchRead(touchPin);
+    delay(30);
+  }
+  
+  int baselineValue = sum / samples;
+  touchThreshold = baselineValue * 0.8;  // Set threshold to 80% of baseline
+  
+  Serial.println("Calibration complete!");
+  Serial.println("Baseline value: " + String(baselineValue));
+  Serial.println("New threshold: " + String(touchThreshold));
 }
 
 //---- Alternative Print Function (Detailed) ----
@@ -146,5 +231,9 @@ void printDetailedData() {
   Serial.print("\tLast Button: ");
   Serial.print(static_cast<int>(lastButtonPressed) + 1);
   Serial.print("\tAnalog Pin 33: ");
-  Serial.println(analogValue);
+  Serial.print(analogValue);
+  Serial.print("\tTouch Value: ");
+  Serial.print(touchValue);
+  Serial.print("\tTouch Detected: ");
+  Serial.println(touchDetected ? "YES" : "NO");
 }
