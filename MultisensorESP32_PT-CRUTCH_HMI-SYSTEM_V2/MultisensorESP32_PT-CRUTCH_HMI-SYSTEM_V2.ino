@@ -15,7 +15,7 @@ String file_name = "MultisensorESP32_PT - CRUTCH HMI SYSTEM - FIXED FORCE";
 //---- HMI Configuration ----
 #define ANALOG_PIN 33
 #define ANALOG_CENTER_VALUE 2048
-#define ANALOG_TOLERANCE_PERCENT 45
+#define ANALOG_TOLERANCE_PERCENT 60
 #define ANALOG_THRESHOLD_LOW (ANALOG_CENTER_VALUE - (ANALOG_CENTER_VALUE * ANALOG_TOLERANCE_PERCENT / 100))
 #define ANALOG_THRESHOLD_HIGH (ANALOG_CENTER_VALUE + (ANALOG_CENTER_VALUE * ANALOG_TOLERANCE_PERCENT / 100))
 
@@ -108,6 +108,7 @@ bool emergency_stop_latched = false;
 
 //---- Device-Specific Configuration ----
 bool analogInputDisabled = false;
+bool can_send_data = false;
 
 //---- Timing Variables ----
 uint32_t imu_timestamp = 0;
@@ -186,8 +187,11 @@ void processAnalogInput() {
     if (!emergency_stop_latched) {
       emergency_stop_latched = true;
       current_system_state = STATE_EMERGENCY_STOP;
-      addToQueue(&uart_queue, "EMERGENCY STOP ACTIVATED!\n");
-      addToQueue(&bt_queue, "EMERGENCY STOP ACTIVATED!\n");
+      // Send ES message immediately
+      char es_msg[OUTPUT_BUFFER_SIZE];
+      snprintf(es_msg, sizeof(es_msg), "%lu,ES,AN:%d\n", millis(), current_analog_value);
+      addToQueue(&uart_queue, es_msg);
+      addToQueue(&bt_queue, es_msg);
     }
   } else {
     new_analog_state = ANALOG_S;
@@ -196,11 +200,6 @@ void processAnalogInput() {
   
   if (new_analog_state != current_analog_state) {
     current_analog_state = new_analog_state;
-    char state_msg[64];
-    snprintf(state_msg, sizeof(state_msg), "ANALOG STATE: %s (value=%d)\n", 
-             current_analog_command.c_str(), current_analog_value);
-    addToQueue(&uart_queue, state_msg);
-    addToQueue(&bt_queue, state_msg);
   }
 }
 
@@ -219,20 +218,22 @@ void handleEnhancedButtonStates() {
       if (button_pressed[0]) { // B1 - Calibrate motor ranges
         current_system_state = STATE_MOTOR_CALIBRATION;
         state_change_timestamp = millis();
-        addToQueue(&uart_queue, "MOTOR CALIBRATION STARTED\n");
-        addToQueue(&bt_queue, "MOTOR CALIBRATION STARTED\n");
+        char mc_msg[OUTPUT_BUFFER_SIZE];
+        snprintf(mc_msg, sizeof(mc_msg), "%lu,MC,AN:%d\n", millis(), current_analog_value);
+        addToQueue(&uart_queue, mc_msg);
+        addToQueue(&bt_queue, mc_msg);
         delay(300); // Debounce
       }
-      // B2 also works from IDLE state for calibration
       if (button_pressed[1]) { // B2 - Force calibration (also from IDLE)
         current_system_state = STATE_FORCE_CALIBRATION_INIT;
         state_change_timestamp = millis();
-        
-        // LED sequence for init
+        char fc_msg[OUTPUT_BUFFER_SIZE];
+        snprintf(fc_msg, sizeof(fc_msg), "%lu,FC\n", millis());
+        addToQueue(&uart_queue, fc_msg);
+        addToQueue(&bt_queue, fc_msg);
         blinkLed(2, 150);
         delay(2000);
         blinkLed(2, 150);
-
         addToQueue(&uart_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
         addToQueue(&bt_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
         delay(300); // Debounce
@@ -243,6 +244,7 @@ void handleEnhancedButtonStates() {
       // Wait for the specified time before transitioning to normal operation
       if ((millis() - state_change_timestamp) >= B1_WAIT_TIME_MS) {
         current_system_state = STATE_NORMAL_OPERATION;
+        can_send_data = true; // Enable data stream
         addToQueue(&uart_queue, "NORMAL OPERATION STARTED\n");
         addToQueue(&bt_queue, "NORMAL OPERATION STARTED\n");
       }
@@ -252,12 +254,19 @@ void handleEnhancedButtonStates() {
       if (button_pressed[1]) { // B2 - Force calibration (during normal operation or idle)
         current_system_state = STATE_FORCE_CALIBRATION_INIT;
         state_change_timestamp = millis();
-
-        // LED sequence for init
+        char fc_msg[OUTPUT_BUFFER_SIZE];
+        snprintf(fc_msg, sizeof(fc_msg), "%lu,FC,%d,%d,%d,%d,%d\n",
+                 millis(),
+                 (int)(current_force * 100),
+                 (int)(current_qw * 1000),
+                 (int)(current_qx * 1000),
+                 (int)(current_qy * 1000),
+                 (int)(current_qz * 1000));
+        addToQueue(&uart_queue, fc_msg);
+        addToQueue(&bt_queue, fc_msg);
         blinkLed(2, 150);
         delay(2000);
         blinkLed(2, 150);
-
         addToQueue(&uart_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
         addToQueue(&bt_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
         delay(300); // Debounce
@@ -430,32 +439,16 @@ bool getFromQueue(UARTQueue* queue, char* buffer) {
 }
 
 void formatCompactMessage(char* buffer, size_t buffer_size) {
-  // Debug output much less frequently
-  static uint32_t debug_count = 0;
-  if (debug_count++ % 2000 == 0) { // Every 100 seconds at 20Hz
-    char debug[120];
-    snprintf(debug, sizeof(debug), "DEBUG: qw=%.3f qx=%.3f qy=%.3f qz=%.3f updates=%lu\n",
-             current_qw, current_qx, current_qy, current_qz, filter_update_count);
-    addToQueue(&uart_queue, debug);
-  }
-  
-  #if USE_COMPACT_FORMAT
-    // Enhanced compact format: timestamp,analog_command,force,qw,qx,qy,qz
-    snprintf(buffer, buffer_size, "%lu,%s,%d,%d,%d,%d,%d\n",
-             millis(),
-             current_analog_command.c_str(),
-             (int)(current_force * 100),          // 2 decimal places
-             (int)(current_qw * 1000),            // 3 decimal places  
-             (int)(current_qx * 1000),
-             (int)(current_qy * 1000),
-             (int)(current_qz * 1000));
-  #else
-    // Standard format with analog command
-    snprintf(buffer, buffer_size, "%lu,%s,F:%.2f,Q:%.3f,%.3f,%.3f,%.3f\n",
-             millis(), current_analog_command.c_str(), current_force,
-             current_qw, current_qx, current_qy, current_qz);
-  #endif
+  snprintf(buffer, buffer_size, "%lu,%s,%d,%d,%d,%d,%d\n",
+           millis(),
+           current_analog_command.c_str(),
+           (int)(current_force * 100),          // 2 decimal places
+           (int)(current_qw * 1000),            // 3 decimal places  
+           (int)(current_qx * 1000),
+           (int)(current_qy * 1000),
+           (int)(current_qz * 1000));
 }
+
 
 void updateBluetoothBurst() {
   static char buffer[OUTPUT_BUFFER_SIZE];
