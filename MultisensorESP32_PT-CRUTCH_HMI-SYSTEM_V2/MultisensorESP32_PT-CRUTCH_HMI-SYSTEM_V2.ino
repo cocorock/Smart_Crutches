@@ -15,7 +15,7 @@ String file_name = "MultisensorESP32_PT - CRUTCH HMI SYSTEM - FIXED FORCE";
 //---- HMI Configuration ----
 #define ANALOG_PIN 33
 #define ANALOG_CENTER_VALUE 2048
-#define ANALOG_TOLERANCE_PERCENT 40
+#define ANALOG_TOLERANCE_PERCENT 45
 #define ANALOG_THRESHOLD_LOW (ANALOG_CENTER_VALUE - (ANALOG_CENTER_VALUE * ANALOG_TOLERANCE_PERCENT / 100))
 #define ANALOG_THRESHOLD_HIGH (ANALOG_CENTER_VALUE + (ANALOG_CENTER_VALUE * ANALOG_TOLERANCE_PERCENT / 100))
 
@@ -227,8 +227,14 @@ void handleEnhancedButtonStates() {
       if (button_pressed[1]) { // B2 - Force calibration (also from IDLE)
         current_system_state = STATE_FORCE_CALIBRATION_INIT;
         state_change_timestamp = millis();
-        addToQueue(&uart_queue, "FORCE CALIBRATION: Wait 2 seconds, then press B3 for TARE (no load)\n");
-        addToQueue(&bt_queue, "FORCE CALIBRATION: Wait 2 seconds, then press B3 for TARE (no load)\n");
+        
+        // LED sequence for init
+        blinkLed(2, 150);
+        delay(2000);
+        blinkLed(2, 150);
+
+        addToQueue(&uart_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
+        addToQueue(&bt_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
         delay(300); // Debounce
       }
       break;
@@ -246,8 +252,14 @@ void handleEnhancedButtonStates() {
       if (button_pressed[1]) { // B2 - Force calibration (during normal operation or idle)
         current_system_state = STATE_FORCE_CALIBRATION_INIT;
         state_change_timestamp = millis();
-        addToQueue(&uart_queue, "FORCE CALIBRATION: Wait 2 seconds, then press B3 for TARE (no load)\n");
-        addToQueue(&bt_queue, "FORCE CALIBRATION: Wait 2 seconds, then press B3 for TARE (no load)\n");
+
+        // LED sequence for init
+        blinkLed(2, 150);
+        delay(2000);
+        blinkLed(2, 150);
+
+        addToQueue(&uart_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
+        addToQueue(&bt_queue, "FORCE CALIBRATION: Press B3 for TARE (no load)\n");
         delay(300); // Debounce
       }
       if (button_pressed[2]) { // B3 - TARE during calibration / Print analog during operation
@@ -262,52 +274,50 @@ void handleEnhancedButtonStates() {
       break;
       
     case STATE_FORCE_CALIBRATION_INIT:
-      if ((millis() - state_change_timestamp) >= CALIBRATION_MIN_WAIT_MS) {
-        if (button_pressed[2]) { // B3 - Perform TARE (no load) - Changed from B2 to B3
-          current_system_state = STATE_FORCE_CALIBRATION_TARE;
-          state_change_timestamp = millis();
-          
-          // Perform tare with NO LOAD using simple reliable method
-          addToQueue(&uart_queue, "TARING with NO LOAD...\n");
-          addToQueue(&bt_queue, "TARING with NO LOAD...\n");
-          
-          scale.tare(20);  // Use library's tare function with 20 readings
-          
-          addToQueue(&uart_queue, "TARE COMPLETE - Now add 900g weight and wait 3 seconds\n");
-          addToQueue(&bt_queue, "TARE COMPLETE - Now add 900g weight and wait 3 seconds\n");
-          
-          delay(300); // Debounce
-        }
+      // Wait for B3 press
+      if (button_pressed[2]) { // B3 - Perform TARE (no load)
+        current_system_state = STATE_FORCE_CALIBRATION_TARE;
+        state_change_timestamp = millis();
+        
+        // LED sequence for tare
+        blinkLed(3, 150);
+        
+        // Perform tare with NO LOAD
+        addToQueue(&uart_queue, "TARING with NO LOAD...\n");
+        addToQueue(&bt_queue, "TARING with NO LOAD...\n");
+        scale.tare(20);
+        
+        blinkLed(3, 150);
+        
+        addToQueue(&uart_queue, "TARE COMPLETE - Now add 900g weight and wait 3 seconds\n");
+        addToQueue(&bt_queue, "TARE COMPLETE - Now add 900g weight and wait 3 seconds\n");
+        
+        delay(300); // Debounce
       }
       break;
       
     case STATE_FORCE_CALIBRATION_TARE:
       if ((millis() - state_change_timestamp) >= 3000) { // Wait 3 seconds for user to add weight
-        // Automatically calculate scale factor using library function
+        // Automatically calculate scale factor
         current_system_state = STATE_FORCE_CALIBRATION_SCALE;
         
         addToQueue(&uart_queue, "CALCULATING SCALE with 900g weight...\n");
         addToQueue(&bt_queue, "CALCULATING SCALE with 900g weight...\n");
         
-        // Use the HX711 library's calibrate_scale method (much more reliable)
+        // Use the HX711 library's calibrate_scale method
         scale.calibrate_scale(CALIBRATION_WEIGHT_GRAMS, 20);
         
-        // Get the calculated scale and offset values
         float scale_factor = scale.get_scale();
         float offset_value = scale.get_offset();
         
-        // Verify calibration worked by checking if scale factor is reasonable
         if (scale_factor != 0 && !isnan(scale_factor) && !isinf(scale_factor)) {
-          // Save calibration to EEPROM
           writeCalibrationToEEPROM(scale_factor, offset_value);
-          
           char cal_msg[150];
           snprintf(cal_msg, sizeof(cal_msg), "CALIBRATION SUCCESS!\nScale: %.6f\nOffset: %.2f\n", 
                    scale_factor, offset_value);
           addToQueue(&uart_queue, cal_msg);
           addToQueue(&bt_queue, cal_msg);
           
-          // Test the calibration
           delay(1000);
           if (scale.is_ready()) {
             float test_weight = scale.get_units(10);
@@ -316,9 +326,7 @@ void handleEnhancedButtonStates() {
             addToQueue(&uart_queue, test_msg);
             addToQueue(&bt_queue, test_msg);
           }
-          
         } else {
-          // Calibration failed - invalid scale factor
           addToQueue(&uart_queue, "CALIBRATION FAILED - Invalid scale factor\n");
           addToQueue(&bt_queue, "CALIBRATION FAILED - Invalid scale factor\n");
           char error_msg[100];
@@ -326,7 +334,6 @@ void handleEnhancedButtonStates() {
           addToQueue(&uart_queue, error_msg);
         }
         
-        // Return to normal operation
         current_system_state = STATE_NORMAL_OPERATION;
         addToQueue(&uart_queue, "Remove weight. Returning to NORMAL OPERATION\n");
         addToQueue(&bt_queue, "Remove weight. Returning to NORMAL OPERATION\n");
@@ -585,10 +592,6 @@ void processPrint() {
   
   print_cycles++;
   
-  if (print_cycles % 20 == 0) {
-    digitalWrite(ledPin, !digitalRead(ledPin));
-  }
-  
   // Always format and send data
   static char output_buffer[OUTPUT_BUFFER_SIZE];
   formatCompactMessage(output_buffer, sizeof(output_buffer));
@@ -642,6 +645,60 @@ void printAdvancedPerformanceStats() {
   loop_max_time = 0;
 }
 
+//==== LED INDICATOR ====
+void blinkLed(int count, int blink_delay_ms) {
+  for (int i = 0; i < count; i++) {
+    digitalWrite(ledPin, HIGH);
+    delay(blink_delay_ms);
+    digitalWrite(ledPin, LOW);
+    if (i < count - 1) {
+      delay(blink_delay_ms);
+    }
+  }
+}
+
+void updateLedIndicator() {
+  // Disable continuous blinking during calibration sequences
+  if (current_system_state == STATE_FORCE_CALIBRATION_INIT ||
+      current_system_state == STATE_FORCE_CALIBRATION_TARE ||
+      current_system_state == STATE_FORCE_CALIBRATION_SCALE) {
+    digitalWrite(ledPin, LOW); // Ensure LED is off when not in a blink sequence
+    return;
+  }
+
+  static uint32_t last_blink_time = 0;
+  uint32_t blink_period_ms = 1000; // Default to 1 Hz for IDLE
+
+  // Bluetooth not connected: 5 Hz
+  if (!SerialBT.hasClient()) {
+    blink_period_ms = 200; // 1000ms / 5Hz = 200ms period
+  } else {
+    // Bluetooth connected, check system state
+    switch (current_system_state) {
+      case STATE_NORMAL_OPERATION:
+        blink_period_ms = 100; // 1000ms / 10Hz = 100ms period
+        break;
+      case STATE_IDLE:
+        blink_period_ms = 1000; // 1000ms / 1Hz = 1000ms period
+        break;
+      case STATE_EMERGENCY_STOP:
+        blink_period_ms = 10000; // 10000ms / 0.1Hz = 10s period
+        break;
+      default:
+        // For other states, let's use the IDLE blink rate
+        blink_period_ms = 1000;
+        break;
+    }
+  }
+
+  // Toggle LED based on the calculated period
+  if (millis() - last_blink_time >= (blink_period_ms / 2)) {
+    digitalWrite(ledPin, !digitalRead(ledPin));
+    last_blink_time = millis();
+  }
+}
+
+
 //==== MAIN LOOP ====
 void loop() {
   uint32_t loop_start = micros();
@@ -673,6 +730,7 @@ void loop() {
 
   updateBluetoothBurst();
   updateUARTFast();
+  updateLedIndicator();
 
   uint32_t loop_time_us = micros() - loop_start;
   uint32_t loop_time_ms = loop_time_us / 1000;
