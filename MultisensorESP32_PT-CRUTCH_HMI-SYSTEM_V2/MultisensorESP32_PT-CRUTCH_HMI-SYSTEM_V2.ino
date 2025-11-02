@@ -90,6 +90,7 @@ enum SystemState {
   STATE_NORMAL_OPERATION,        // Normal sensor streaming
   STATE_FORCE_CALIBRATION_INIT,  // B2 pressed - starting force calibration
   STATE_FORCE_CALIBRATION_TARE,  // Waiting for B3 to tare
+  STATE_FORCE_CALIBRATION_WAIT_WEIGHT, // NEW: Waiting for user to add 900g and press B2
   STATE_FORCE_CALIBRATION_SCALE, // Waiting for scale calculation
   STATE_EMERGENCY_STOP           // Emergency stop activated
 };
@@ -294,21 +295,56 @@ void handleEnhancedButtonStates() {
         // Perform tare with NO LOAD
         addToQueue(&uart_queue, "TARING with NO LOAD...\n");
         addToQueue(&bt_queue, "TARING with NO LOAD...\n");
+        
+        char tare_msg[OUTPUT_BUFFER_SIZE];
+        snprintf(tare_msg, sizeof(tare_msg), "%lu,TR_START\n", millis());
+        addToQueue(&uart_queue, tare_msg);
+        addToQueue(&bt_queue, tare_msg);
+        
         scale.tare(20);
         
         blinkLed(3, 150);
         
-        addToQueue(&uart_queue, "TARE COMPLETE - Now add 900g weight and wait 3 seconds\n");
-        addToQueue(&bt_queue, "TARE COMPLETE - Now add 900g weight and wait 3 seconds\n");
+        char tare_complete_msg[OUTPUT_BUFFER_SIZE];
+        snprintf(tare_complete_msg, sizeof(tare_complete_msg), "%lu,TR_COMPLETE\n", millis());
+        addToQueue(&uart_queue, tare_complete_msg);
+        addToQueue(&bt_queue, tare_complete_msg);
+        
+        addToQueue(&uart_queue, "TARE COMPLETE - Now add 900g weight and press B2 when ready\n");
+        addToQueue(&bt_queue, "TARE COMPLETE - Now add 900g weight and press B2 when ready\n");
         
         delay(300); // Debounce
       }
       break;
       
     case STATE_FORCE_CALIBRATION_TARE:
-      if ((millis() - state_change_timestamp) >= 3000) { // Wait 3 seconds for user to add weight
-        // Automatically calculate scale factor
+      // NEW: Wait for user to add weight and press B2 (instead of automatic 3-second timer)
+      if (button_pressed[1]) { // B2 - User confirms weight is added
+        current_system_state = STATE_FORCE_CALIBRATION_WAIT_WEIGHT;
+        state_change_timestamp = millis();
+        
+        char weight_confirm_msg[OUTPUT_BUFFER_SIZE];
+        snprintf(weight_confirm_msg, sizeof(weight_confirm_msg), "%lu,B2_PRESSED_WAIT_3SEC\n", millis());
+        addToQueue(&uart_queue, weight_confirm_msg);
+        addToQueue(&bt_queue, weight_confirm_msg);
+        
+        addToQueue(&uart_queue, "B2 detected! Waiting 3 seconds for weight to settle...\n");
+        addToQueue(&bt_queue, "B2 detected! Waiting 3 seconds for weight to settle...\n");
+        
+        blinkLed(1, 200); // Single blink to confirm button press
+        delay(300); // Debounce
+      }
+      break;
+      
+    case STATE_FORCE_CALIBRATION_WAIT_WEIGHT:
+      // Wait 3 seconds after B2 press, then calculate scale
+      if ((millis() - state_change_timestamp) >= 3000) {
         current_system_state = STATE_FORCE_CALIBRATION_SCALE;
+        
+        char calc_start_msg[OUTPUT_BUFFER_SIZE];
+        snprintf(calc_start_msg, sizeof(calc_start_msg), "%lu,CALC_START\n", millis());
+        addToQueue(&uart_queue, calc_start_msg);
+        addToQueue(&bt_queue, calc_start_msg);
         
         addToQueue(&uart_queue, "CALCULATING SCALE with 900g weight...\n");
         addToQueue(&bt_queue, "CALCULATING SCALE with 900g weight...\n");
@@ -321,6 +357,13 @@ void handleEnhancedButtonStates() {
         
         if (scale_factor != 0 && !isnan(scale_factor) && !isinf(scale_factor)) {
           writeCalibrationToEEPROM(scale_factor, offset_value);
+          
+          char cal_success_msg[OUTPUT_BUFFER_SIZE];
+          snprintf(cal_success_msg, sizeof(cal_success_msg), "%lu,CAL_SUCCESS,Scale:%.6f,Offset:%.2f\n", 
+                   millis(), scale_factor, offset_value);
+          addToQueue(&uart_queue, cal_success_msg);
+          addToQueue(&bt_queue, cal_success_msg);
+          
           char cal_msg[150];
           snprintf(cal_msg, sizeof(cal_msg), "CALIBRATION SUCCESS!\nScale: %.6f\nOffset: %.2f\n", 
                    scale_factor, offset_value);
@@ -334,8 +377,18 @@ void handleEnhancedButtonStates() {
             snprintf(test_msg, sizeof(test_msg), "Test reading: %.2f g\n", test_weight);
             addToQueue(&uart_queue, test_msg);
             addToQueue(&bt_queue, test_msg);
+            
+            char test_data_msg[OUTPUT_BUFFER_SIZE];
+            snprintf(test_data_msg, sizeof(test_data_msg), "%lu,TEST_READING:%.2f\n", millis(), test_weight);
+            addToQueue(&uart_queue, test_data_msg);
+            addToQueue(&bt_queue, test_data_msg);
           }
         } else {
+          char cal_fail_msg[OUTPUT_BUFFER_SIZE];
+          snprintf(cal_fail_msg, sizeof(cal_fail_msg), "%lu,CAL_FAILED,Scale:%.6f\n", millis(), scale_factor);
+          addToQueue(&uart_queue, cal_fail_msg);
+          addToQueue(&bt_queue, cal_fail_msg);
+          
           addToQueue(&uart_queue, "CALIBRATION FAILED - Invalid scale factor\n");
           addToQueue(&bt_queue, "CALIBRATION FAILED - Invalid scale factor\n");
           char error_msg[100];
@@ -994,6 +1047,7 @@ String getSystemStateName(SystemState state) {
     case STATE_NORMAL_OPERATION: return "NORMAL";
     case STATE_FORCE_CALIBRATION_INIT: return "FORCE_CAL_INIT";
     case STATE_FORCE_CALIBRATION_TARE: return "FORCE_CAL_TARE";
+    case STATE_FORCE_CALIBRATION_WAIT_WEIGHT: return "FORCE_CAL_WAIT_WEIGHT";
     case STATE_FORCE_CALIBRATION_SCALE: return "FORCE_CAL_SCALE";
     case STATE_EMERGENCY_STOP: return "EMERGENCY";
     default: return "UNKNOWN";
