@@ -43,7 +43,7 @@ const unsigned long touchReadInterval = 50;    // Read touch every 50ms
 //---- Setup Function ----
 void setup() {
   // Initialize Serial Communication
-  Serial.begin(115200);
+  Serial.begin(921600);
   while (!Serial) {}
   Serial.println(file_name);
   

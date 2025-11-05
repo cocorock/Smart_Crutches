@@ -1,5 +1,5 @@
 % Read the data from the CSV file
-data = readtable('crutch_logs/combined_log_20251031_202950.csv');
+data = readtable('crutch_logs/combined_log_20251102_152106.csv');
 
 % Convert system_time to datetime if it's not already
 if ~isdatetime(data.system_time)
@@ -32,7 +32,7 @@ subplot(4,1,1);
 hold on;
 for i = 1:length(devices)
     device_data = data(strcmp(data.device, devices{i}), :);
-    plot(device_data.system_time, device_data.analog);
+    plot(device_data.system_time, device_data.analog, '*-');
 end
 hold off;
 title('Analog Data');
@@ -45,7 +45,7 @@ subplot(4,1,2);
 hold on;
 for i = 1:length(devices)
     device_data = data(strcmp(data.device, devices{i}), :);
-    plot(device_data.system_time, device_data.force);
+    plot(device_data.system_time, device_data.force, '*-');
 end
 hold off;
 title('Force Data (Filtered)');
@@ -58,10 +58,10 @@ subplot(4,1,3);
 hold on;
 for i = 1:length(devices)
     device_data = data(strcmp(data.device, devices{i}), :);
-    plot(device_data.system_time, device_data.qw, 'DisplayName', [devices{i} ' qw']);
-    plot(device_data.system_time, device_data.qx, 'DisplayName', [devices{i} ' qx']);
-    plot(device_data.system_time, device_data.qy, 'DisplayName', [devices{i} ' qy']);
-    plot(device_data.system_time, device_data.qz, 'DisplayName', [devices{i} ' qz']);
+    plot(device_data.system_time, device_data.qw, '*-', 'DisplayName', [devices{i} ' qw']);
+    plot(device_data.system_time, device_data.qx, '*-', 'DisplayName', [devices{i} ' qx']);
+    plot(device_data.system_time, device_data.qy, '*-', 'DisplayName', [devices{i} ' qy']);
+    plot(device_data.system_time, device_data.qz, '*-', 'DisplayName', [devices{i} ' qz']);
 end
 hold off;
 title('Quaternion Orientation');
@@ -74,9 +74,9 @@ subplot(4,1,4);
 hold on;
 for i = 1:length(devices)
     device_data = data(strcmp(data.device, devices{i}), :);
-    plot(device_data.system_time, device_data.roll, 'DisplayName', [devices{i} ' Roll']);
-    plot(device_data.system_time, device_data.pitch, 'DisplayName', [devices{i} ' Pitch']);
-    plot(device_data.system_time, device_data.yaw, 'DisplayName', [devices{i} ' Yaw']);
+    plot(device_data.system_time, device_data.roll, '*-', 'DisplayName', [devices{i} ' Roll']);
+    plot(device_data.system_time, device_data.pitch, '*-', 'DisplayName', [devices{i} ' Pitch']);
+    plot(device_data.system_time, device_data.yaw, '*-', 'DisplayName', [devices{i} ' Yaw']);
 end
 hold off;
 title('Euler Angles');

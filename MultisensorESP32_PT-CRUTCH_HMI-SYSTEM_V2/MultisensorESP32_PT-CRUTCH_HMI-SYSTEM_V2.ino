@@ -71,7 +71,7 @@ Adafruit_Madgwick filter;
 #endif
 
 //---- Hardware Pins ----
-const int keyPadPins[] = { 4, 0, 15, 2 }; // B1, B2, B3, B4 (reordered)
+const int keyPadPins[] = { 4, 2, 15, 0  }; // B1, B2, B3, B4 (reordered) { 4, 0, 15, 2 }
 const int numButtons = sizeof(keyPadPins) / sizeof(int);
 const int ledPin = 5;
 uint8_t loopDelay = 1;
