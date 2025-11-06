@@ -1,7 +1,8 @@
 % MATLAB Script for Dual Crutch Data Analysis
 % Reads combined CSV file, plots data, segments gaits, and computes averages
-% Author: Created for Crutch HMI Systemola
+% Author: Created for Crutch HMI System
 % Date: 2025
+% Updated: Time normalized to 0-1 (0% to 100% of gait cycle)
  
 clear all;
 close all;
@@ -22,14 +23,13 @@ fullpath = fullfile(filepath, filename);
 % Adjust these values based on your data
 % Example: 6 cut points will create 5 segments
 %1 X
-% time_cuts = [14.72, 18.925, 23.298, 27.434, 31.939, 36.389, 41.05]; %20251105_002950
-time_cuts = [14.33, 19.46, 24.11, 29.03, 33.55]; %20251105_003116
-time_cuts = [14.9, 19.85, 24.7, 30.07, 35.18, 40.35, 46.09]; %20251105_003627
-time_cuts = [15.21, 20.77, 26.74, 31.94, 37.29, 42.3, 47.81]; %20251105_003835
-time_cuts = [18.19, 22.94, 29.17, 33.42, 38.578, 43.97, 49.47]; %20251105_004518
-time_cuts = [14.63, 20.32, 26.18, 31.6, 36.86, 41.97, 47.97]; %20251105_004706
-
-% time_cuts = [13.82, 19.58, 25.15, 30.83]; %20251105_005111 - , 36.6, 42.55, 48.15
+time_cuts = [14.72, 18.925, 23.298, 27.434, 31.939, 36.389, 41.05]; %20251105_002950.csv
+time_cuts = [14.33, 19.46, 24.11, 29.03, 33.55]; %20251105_003116.csv
+time_cuts = [14.9, 19.85, 24.7, 30.07, 35.18, 40.35, 46.09]; %20251105_003627.csv
+time_cuts = [15.21, 20.77, 26.74, 31.94, 37.29, 42.3, 47.81]; %20251105_003835.csv
+time_cuts = [18.19, 22.94, 29.17, 33.42, 38.578, 43.97, 49.47]; %20251105_004518.csv
+time_cuts = [14.63, 20.32, 26.18, 31.6, 36.86, 41.97, 47.97]; %20251105_004706.csv
+time_cuts = [13.82, 19.58, 25.15, 30.83]; %20251105_005111.csv
 
 % Number of segments (should be length(time_cuts) - 1)
 num_segments = length(time_cuts) - 1;
@@ -165,8 +165,9 @@ for i = 1:num_segments
         continue;
     end
     
-    % Extract segment data
-    segments_time{i} = time_aligned(idx) - start_time; % Normalize to start at 0
+    % Calculate segment duration and normalize time to [0, 1]
+    segment_duration = end_time - start_time;
+    segments_time{i} = (time_aligned(idx) - start_time) / segment_duration; % Normalize to 0-1
     segments_force1{i} = force1(idx);
     segments_force2{i} = force2(idx);
     
@@ -188,8 +189,8 @@ for i = 1:num_segments
     segments_pitch2{i} = pitch2(idx);
     segments_yaw2{i} = yaw2(idx);
     
-    fprintf('  Segment %d: %.2f to %.2f s (%d samples)\n', ...
-        i, start_time, end_time, length(idx));
+    fprintf('  Segment %d: %.2f to %.2f s (%.2f s duration, %d samples) -> normalized to [0, 1]\n', ...
+        i, start_time, end_time, segment_duration, length(idx));
 end
 
 %% ========================================================================
@@ -210,9 +211,11 @@ for i = 1:num_segments
             'LineWidth', 1, 'DisplayName', sprintf('Seg %d', i));
     end
 end
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Force (units)');
 title('Crutch 1 - All Force Segments');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
@@ -225,9 +228,11 @@ for i = 1:num_segments
             'LineWidth', 1, 'DisplayName', sprintf('Seg %d', i));
     end
 end
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Force (units)');
 title('Crutch 2 - All Force Segments');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
@@ -256,9 +261,11 @@ for q = 1:4
                 'LineWidth', 1, 'DisplayName', sprintf('Seg %d', i));
         end
     end
-    xlabel('Time (s) - Normalized');
+    xlabel('Gait Cycle (%)');
     ylabel(quaternion_labels{q});
     title(sprintf('Crutch 1 - %s Segments', quaternion_labels{q}));
+    xticks(0:0.2:1);
+    xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
     if q == 1
         legend('Location', 'best', 'NumColumns', 2);
     end
@@ -279,9 +286,11 @@ for q = 1:4
                 'LineWidth', 1, 'DisplayName', sprintf('Seg %d', i));
         end
     end
-    xlabel('Time (s) - Normalized');
+    xlabel('Gait Cycle (%)');
     ylabel(quaternion_labels{q});
     title(sprintf('Crutch 2 - %s Segments', quaternion_labels{q}));
+    xticks(0:0.2:1);
+    xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
     if q == 1
         legend('Location', 'best', 'NumColumns', 2);
     end
@@ -312,9 +321,11 @@ for e = 1:3
                 'LineWidth', 1, 'DisplayName', sprintf('Seg %d', i));
         end
     end
-    xlabel('Time (s) - Normalized');
+    xlabel('Gait Cycle (%)');
     ylabel(sprintf('%s (deg)', euler_labels{e}));
     title(sprintf('Crutch 1 - %s Segments', euler_labels{e}));
+    xticks(0:0.2:1);
+    xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
     if e == 1
         legend('Location', 'best', 'NumColumns', 2);
     end
@@ -334,9 +345,11 @@ for e = 1:3
                 'LineWidth', 1, 'DisplayName', sprintf('Seg %d', i));
         end
     end
-    xlabel('Time (s) - Normalized');
+    xlabel('Gait Cycle (%)');
     ylabel(sprintf('%s (deg)', euler_labels{e}));
     title(sprintf('Crutch 2 - %s Segments', euler_labels{e}));
+    xticks(0:0.2:1);
+    xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
     if e == 1
         legend('Location', 'best', 'NumColumns', 2);
     end
@@ -349,20 +362,9 @@ end
 
 fprintf('Computing mean and standard deviation across segments...\n');
 
-% Resample all segments to common time base for averaging
-% Find the shortest segment duration
-min_duration = inf;
-for i = 1:num_segments
-    if ~isempty(segments_time{i})
-        duration = max(segments_time{i});
-        if duration < min_duration
-            min_duration = duration;
-        end
-    end
-end
-
-% Create common time base
-common_time = linspace(0, min_duration, 200); % 200 points
+% All segments are now normalized to [0, 1]
+% Create common time base from 0 to 1 (0% to 100% of gait cycle)
+common_time = linspace(0, 1, 200); % 200 points
 
 % Initialize matrices for resampled data
 force1_matrix = zeros(length(common_time), num_segments);
@@ -457,10 +459,13 @@ figure('Name', 'Mean Signals with 2*STD - Separated by Crutch', 'Position', [300
 % LEFT COLUMN - CRUTCH 1 (COM10)
 % Plot 1: Crutch 1 Force
 subplot(3, 2, 1);
+hold on;
 plot_shaded(common_time, force1_mean, 2*force1_std, [0, 0.4470, 0.7410], 'Force');
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Force (units)');
 title('Crutch 1 (COM10) - Mean Force +/- 2*STD');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
@@ -471,9 +476,11 @@ hold on;
 plot_shaded(common_time, qx1_mean, 2*qx1_std, [0.8500, 0.3250, 0.0980], 'Qx');
 plot_shaded(common_time, qy1_mean, 2*qy1_std, [0.9290, 0.6940, 0.1250], 'Qy');
 plot_shaded(common_time, qz1_mean, 2*qz1_std, [0.4940, 0.1840, 0.5560], 'Qz');
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Quaternion Value');
 title('Crutch 1 (COM10) - Mean Quaternions +/- 2*STD');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
@@ -483,19 +490,24 @@ plot_shaded(common_time, roll1_mean, 2*roll1_std, [0, 0.4470, 0.7410], 'Roll');
 hold on;
 plot_shaded(common_time, pitch1_mean, 2*pitch1_std, [0.8500, 0.3250, 0.0980], 'Pitch');
 plot_shaded(common_time, yaw1_mean, 2*yaw1_std, [0.4940, 0.1840, 0.5560], 'Yaw');
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Angle (degrees)');
 title('Crutch 1 (COM10) - Mean Euler Angles +/- 2*STD');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
 % RIGHT COLUMN - CRUTCH 2 (COM12)
 % Plot 2: Crutch 2 Force
 subplot(3, 2, 2);
+hold on;
 plot_shaded(common_time, force2_mean, 2*force2_std, [0.6350, 0.0780, 0.1840], 'Force');
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Force (units)');
 title('Crutch 2 (COM12) - Mean Force +/- 2*STD');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
@@ -506,9 +518,11 @@ hold on;
 plot_shaded(common_time, qx2_mean, 2*qx2_std, [0.8500, 0.3250, 0.0980], 'Qx');
 plot_shaded(common_time, qy2_mean, 2*qy2_std, [0.9290, 0.6940, 0.1250], 'Qy');
 plot_shaded(common_time, qz2_mean, 2*qz2_std, [0.4940, 0.1840, 0.5560], 'Qz');
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Quaternion Value');
 title('Crutch 2 (COM12) - Mean Quaternions +/- 2*STD');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
@@ -518,9 +532,11 @@ plot_shaded(common_time, roll2_mean, 2*roll2_std, [0.6350, 0.0780, 0.1840], 'Rol
 hold on;
 plot_shaded(common_time, pitch2_mean, 2*pitch2_std, [0.8500, 0.3250, 0.0980], 'Pitch');
 plot_shaded(common_time, yaw2_mean, 2*yaw2_std, [0.4940, 0.1840, 0.5560], 'Yaw');
-xlabel('Time (s) - Normalized');
+xlabel('Gait Cycle (%)');
 ylabel('Angle (degrees)');
 title('Crutch 2 (COM12) - Mean Euler Angles +/- 2*STD');
+xticks(0:0.2:1);
+xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
 grid on;
 
@@ -560,7 +576,7 @@ function [roll, pitch, yaw] = quat2euler(qw, qx, qy, qz)
     yaw = atan2(siny_cosp, cosy_cosp) * 180 / pi;
 end
 
-%% Helper Function: Plot with Shaded Standard Deviation
+%% Helper Function: Plot with Shaded Standard Deviation (FIXED VERSION)
 function plot_shaded(x, y_mean, y_std, color, label)
     % Plot mean line with shaded standard deviation region
     
@@ -568,7 +584,7 @@ function plot_shaded(x, y_mean, y_std, color, label)
     y_upper = y_mean + y_std;
     y_lower = y_mean - y_std;
     
-    % Create shaded region
+    % Convert color to RGB if needed
     if ischar(color)
         % Convert color letter to RGB
         switch color
@@ -585,10 +601,19 @@ function plot_shaded(x, y_mean, y_std, color, label)
         rgb = color;
     end
     
-    % Plot shaded area
-    fill([x, fliplr(x)], [y_upper', fliplr(y_lower')], rgb, ...
+    % Save current hold state and enable hold
+    wasHeld = ishold;
+    hold on;
+    
+    % Plot shaded area (this needs to go first, behind the line)
+    fill([x(:)', fliplr(x(:)')], [y_upper(:)', fliplr(y_lower(:)')], rgb, ...
         'FaceAlpha', 0.2, 'EdgeColor', 'none', 'HandleVisibility', 'off');
     
-    % Plot mean line
+    % Plot mean line on top
     plot(x, y_mean, 'Color', rgb, 'LineWidth', 2, 'DisplayName', label);
+    
+    % Restore original hold state
+    if ~wasHeld
+        hold off;
+    end
 end
