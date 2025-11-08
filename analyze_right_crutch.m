@@ -12,10 +12,16 @@ clc;
 % =========================================================================
 
 % MAT file containing all segments
-segments_mat_file = 'all_gait_segments.mat';
+segments_mat_file = 'all_gait_segmentsBackUP.mat';
 
 % Common time base for resampling (0 to 1, representing 0% to 100%)
 common_time = linspace(0, 1, 200);
+
+% System + Body Weight Configuration
+SYSTEM_BODY_WEIGHT = 110680; % kg
+WEIGHT_FORCE = SYSTEM_BODY_WEIGHT;
+
+fprintf('System + Body Weight: %.1f kg (%.1f N)\n', SYSTEM_BODY_WEIGHT, WEIGHT_FORCE);
 
 %% ========================================================================
 % LOAD ALL SEGMENTS
@@ -31,9 +37,11 @@ end
 % Load segments
 loaded_data = load(segments_mat_file);
 segments = loaded_data.segments;
+segments(22) = [];
+segments(22) = [];
 
 num_segments = length(segments);
-fprintf('✓ Loaded %d segments\n', num_segments);
+fprintf('? Loaded %d segments\n', num_segments);
 
 % Display database summary
 unique_files = unique({segments.source_file});
@@ -66,7 +74,8 @@ for i = 1:num_segments
     seg = segments(i);
     
     % Resample to common time base - Right crutch only
-    force1_matrix(:, i) = interp1(seg.time, seg.force1, common_time, 'linear', 'extrap');
+    % Convert force to percentage of body weight
+    force1_matrix(:, i) = (interp1(seg.time, seg.force1*1.182, common_time, 'linear', 'extrap') / WEIGHT_FORCE) * 100;
     
     qw1_matrix(:, i) = interp1(seg.time, seg.qw1, common_time, 'linear', 'extrap');
     qx1_matrix(:, i) = interp1(seg.time, seg.qx1, common_time, 'linear', 'extrap');
@@ -78,7 +87,7 @@ for i = 1:num_segments
     yaw1_matrix(:, i) = interp1(seg.time, seg.yaw1, common_time, 'linear', 'extrap');
 end
 
-fprintf('✓ Resampled %d segments to common time base\n', num_segments);
+fprintf('? Resampled %d segments to common time base\n', num_segments);
 
 %% ========================================================================
 % COMPUTE STATISTICS - RIGHT CRUTCH
@@ -86,7 +95,7 @@ fprintf('✓ Resampled %d segments to common time base\n', num_segments);
 
 fprintf('Computing mean and standard deviation across all right crutch segments...\n');
 
-% Force statistics
+% Force statistics (already in % body weight)
 force1_mean = mean(force1_matrix, 2);
 force1_std = std(force1_matrix, 0, 2);
 
@@ -108,7 +117,7 @@ pitch1_std = std(pitch1_matrix, 0, 2);
 yaw1_mean = mean(yaw1_matrix, 2);
 yaw1_std = std(yaw1_matrix, 0, 2);
 
-fprintf('✓ Statistics computed\n');
+fprintf('? Statistics computed\n');
 
 %% ========================================================================
 % FIGURE 1: ALL SEGMENTS OVERLAID - FORCE
@@ -121,15 +130,16 @@ figure('Name', sprintf('Right Crutch - All Force Segments (n=%d)', num_segments)
     'Position', [100, 100, 800, 600]);
 
 hold on;
-colors = parula(num_segments);
+colors = hsv(num_segments);
 for i = 1:num_segments
-    plot(common_time, force1_matrix(:, i), 'Color', [colors(i,:), 0.3], 'LineWidth', 0.5);
+    plot(common_time, force1_matrix(:, i)*1.182, 'Color', [colors(i,:), 0.8], 'LineWidth', 1);
 end
 xlabel('Gait Cycle (%)');
-ylabel('Force (units)');
-title(sprintf('Right Crutch - All Force Segments (n=%d)', num_segments));
+ylabel('Force (% Body Weight)');
+title(sprintf('Right Crutch - All Force Segments (n=%d) - %.1f kg Reference', num_segments, SYSTEM_BODY_WEIGHT));
 xticks(0:0.2:1);
 xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
+legend('show', 'Location', 'best');  
 grid on;
 
 %% ========================================================================
@@ -148,7 +158,7 @@ for q = 1:4
     subplot(4, 1, q);
     hold on;
     for i = 1:num_segments
-        plot(common_time, quat_matrices{q}(:, i), 'Color', [colors(i,:), 0.3], 'LineWidth', 0.5);
+        plot(common_time, quat_matrices{q}(:, i), 'Color', [colors(i,:), 0.3], 'LineWidth', 1);
     end
     xlabel('Gait Cycle (%)');
     ylabel(quaternion_labels{q});
@@ -174,7 +184,7 @@ for e = 1:3
     subplot(3, 1, e);
     hold on;
     for i = 1:num_segments
-        plot(common_time, euler_matrices{e}(:, i), 'Color', [colors(i,:), 0.3], 'LineWidth', 0.5);
+        plot(common_time, euler_matrices{e}(:, i), 'Color', [colors(i,:), 0.3], 'LineWidth', 1);
     end
     xlabel('Gait Cycle (%)');
     ylabel(sprintf('%s (deg)', euler_labels{e}));
@@ -185,21 +195,21 @@ for e = 1:3
 end
 
 %% ========================================================================
-% FIGURE 4: MEAN WITH 2*STD - COMPREHENSIVE VIEW
+% FIGURE 4: MEAN WITH STD - COMPREHENSIVE VIEW
 % =========================================================================
 
-fprintf('Figure 4: Mean with 2*STD (comprehensive view)...\n');
+fprintf('Figure 4: Mean with STD (comprehensive view)...\n');
 
-figure('Name', sprintf('Right Crutch - Mean Signals with 2*STD (n=%d)', num_segments), ...
+figure('Name', sprintf('Right Crutch - Mean Signals with STD (n=%d)', num_segments), ...
     'Position', [250, 250, 800, 900]);
 
 % Plot 1: Force
 subplot(3, 1, 1);
 hold on;
-plot_shaded(common_time, force1_mean, 2*force1_std, [0, 0.4470, 0.7410], 'Force');
+plot_shaded(common_time, force1_mean, force1_std, [0, 0.4470, 0.7410], 'Force');
 xlabel('Gait Cycle (%)');
-ylabel('Force (units)');
-title(sprintf('Right Crutch - Mean Force ± 2σ (n=%d)', num_segments));
+ylabel('Force (% Body Weight)');
+title(sprintf('Right Crutch - Mean Force + STD (n=%d) - %.1f kg Reference', num_segments, SYSTEM_BODY_WEIGHT));
 xticks(0:0.2:1);
 xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
@@ -207,14 +217,14 @@ grid on;
 
 % Plot 2: Quaternions
 subplot(3, 1, 2);
-plot_shaded(common_time, qw1_mean, 2*qw1_std, [0, 0.4470, 0.7410], 'Qw');
+plot_shaded(common_time, qw1_mean, qw1_std, [0, 0.4470, 0.7410], 'Qw');
 hold on;
-plot_shaded(common_time, qx1_mean, 2*qx1_std, [0.8500, 0.3250, 0.0980], 'Qx');
-plot_shaded(common_time, qy1_mean, 2*qy1_std, [0.9290, 0.6940, 0.1250], 'Qy');
-plot_shaded(common_time, qz1_mean, 2*qz1_std, [0.4940, 0.1840, 0.5560], 'Qz');
+plot_shaded(common_time, qx1_mean, qx1_std, [0.8500, 0.3250, 0.0980], 'Qx');
+plot_shaded(common_time, qy1_mean, qy1_std, [0.9290, 0.6940, 0.1250], 'Qy');
+plot_shaded(common_time, qz1_mean, qz1_std, [0.4940, 0.1840, 0.5560], 'Qz');
 xlabel('Gait Cycle (%)');
 ylabel('Quaternion Value');
-title(sprintf('Right Crutch - Mean Quaternions ± 2σ (n=%d)', num_segments));
+title(sprintf('Right Crutch - Mean Quaternions + STD (n=%d)', num_segments));
 xticks(0:0.2:1);
 xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
@@ -222,13 +232,13 @@ grid on;
 
 % Plot 3: Euler Angles
 subplot(3, 1, 3);
-plot_shaded(common_time, roll1_mean, 2*roll1_std, [0, 0.4470, 0.7410], 'Roll');
+plot_shaded(common_time, roll1_mean, roll1_std, [0, 0.4470, 0.7410], 'Pitch');
 hold on;
-plot_shaded(common_time, pitch1_mean, 2*pitch1_std, [0.8500, 0.3250, 0.0980], 'Pitch');
-plot_shaded(common_time, yaw1_mean, 2*yaw1_std, [0.4940, 0.1840, 0.5560], 'Yaw');
+plot_shaded(common_time, pitch1_mean, pitch1_std, [0.8500, 0.3250, 0.0980], 'Yaw');
+plot_shaded(common_time, yaw1_mean, yaw1_std, [0.4940, 0.1840, 0.5560], 'Roll');
 xlabel('Gait Cycle (%)');
 ylabel('Angle (degrees)');
-title(sprintf('Right Crutch - Mean Euler Angles ± 2σ (n=%d)', num_segments));
+title(sprintf('Right Crutch - Mean Euler Angles + STD (n=%d)', num_segments));
 xticks(0:0.2:1);
 xticklabels({'0%', '20%', '40%', '60%', '80%', '100%'});
 legend('Location', 'best');
@@ -243,16 +253,17 @@ fprintf('ANALYSIS OF RIGHT CRUTCH - ALL ACCUMULATED SEGMENTS COMPLETE!\n');
 fprintf(string(repmat('=', 1, 70)) + '\n');
 fprintf('Database: %s\n', segments_mat_file);
 fprintf('Total segments analyzed: %d\n', num_segments);
+fprintf('System + Body Weight: %.1f kg (%.1f N)\n', SYSTEM_BODY_WEIGHT, WEIGHT_FORCE);
 fprintf('From %d different files:\n', length(unique_files));
 for i = 1:length(unique_files)
     file_segments = sum(strcmp({segments.source_file}, unique_files{i}));
     fprintf('  - %s: %d segments\n', unique_files{i}, file_segments);
 end
 fprintf('\nGenerated 4 figures:\n');
-fprintf('  1. Right crutch - All force segments overlaid\n');
+fprintf('  1. Right crutch - All force segments overlaid (in %% Body Weight)\n');
 fprintf('  2. Right crutch - All quaternion segments overlaid\n');
 fprintf('  3. Right crutch - All Euler angle segments overlaid\n');
-fprintf('  4. Right crutch - Mean signals with 2*STD (comprehensive view)\n');
+fprintf('  4. Right crutch - Mean signals with STD (comprehensive view)\n');
 fprintf(string(repmat('=', 1, 70)) + '\n\n');
 
 %% ========================================================================
